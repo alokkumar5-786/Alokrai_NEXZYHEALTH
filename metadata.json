@@ -1,0 +1,6 @@
+{
+  "name": "NexzyHealth",
+  "description": "Understand Your Health Report. Simply. An accessible, easy-to-understand medical report reader and explainer for adults and caregivers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

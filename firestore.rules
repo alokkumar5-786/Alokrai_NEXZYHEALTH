@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny all document operations
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Authenticated User Profiles (users/{uid})
+    match /users/{userId} {
+      // 1. Read: Restrict access strictly to authenticated owner
+      allow read: if isOwner(userId);
+      
+      // 2. Creation: Must be authenticated owner, cannot inject server entitlements
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && !request.resource.data.keys().hasAny(['subscription', 'credits', 'paymentEntitlements', 'medicalReports'])
+        && request.resource.data.accountStatus in ['ACTIVE', 'PENDING_VERIFICATION'];
+      
+      // 3. Update: Must be authenticated owner, prevents modification of protected fields (createdAt, accountStatus, etc.)
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'subscription', 
+          'credits', 
+          'paymentEntitlements', 
+          'medicalReports', 
+          'createdAt', 
+          'accountStatus'
+        ]);
+      
+      // 4. Deletion: Prevent client-side deletion
+      allow delete: if false;
+    }
+
+    // Medical reports: Strictly read-only for report owner, client writes disabled
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+  }
+}

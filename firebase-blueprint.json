@@ -1,0 +1,24 @@
+{
+  "$schema": "https://firebase.google.com/schemas/blueprint.v1.json",
+  "entities": {
+    "UserProfile": {
+      "collection": "users",
+      "path": "/users/{userId}",
+      "description": "User profile with verified authentication details and preferences.",
+      "fields": {
+        "uid": { "type": "string", "description": "Firebase Auth UID of user" },
+        "email": { "type": "string", "optional": true, "description": "Verified or registered email address" },
+        "phoneNumber": { "type": "string", "optional": true, "description": "Verified phone number in E.164 format (+91...)" },
+        "displayName": { "type": "string", "description": "User's preferred or default display name" },
+        "preferredLanguage": { "type": "string", "description": "Preferred language code (en, hi, bn, etc.)" },
+        "createdAt": { "type": "timestamp", "description": "Timestamp when account was first created" },
+        "updatedAt": { "type": "timestamp", "description": "Timestamp when profile was last updated" },
+        "accountStatus": { "type": "string", "enum": ["ACTIVE", "PENDING_VERIFICATION"], "description": "Account status flag" }
+      },
+      "rules": {
+        "read": "request.auth != null && request.auth.uid == userId",
+        "write": "request.auth != null && request.auth.uid == userId && !request.resource.data.keys().hasAny(['subscription', 'credits', 'paymentEntitlements'])"
+      }
+    }
+  }
+}
