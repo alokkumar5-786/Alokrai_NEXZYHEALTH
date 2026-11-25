@@ -88,5 +88,6 @@ data class UserProfile(
   val createdAt: Long = System.currentTimeMillis(),
   val updatedAt: Long = System.currentTimeMillis(),
   val accountStatus: String = "ACTIVE",
-  val preferredLanguage: String = "en"
+  val preferredLanguage: String = "en",
+  val preferredLanguageSelected: Boolean = false
 )

@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FactCheck
@@ -66,7 +68,11 @@ import com.example.model.MedicalTermDefinition
 import com.example.model.ProvenanceAvailability
 import com.example.model.ReportExplanationResult
 import com.example.model.ReportExplanationState
+import com.example.model.ReportSafetySummary
+import com.example.model.SafetyBucket
 import com.example.ui.components.NexzyTopAppBar
+import com.example.ui.components.SafetyCompactNoticeBanner
+import com.example.ui.components.SafetySummaryCard
 import com.example.ui.theme.BrandMintBackground
 import com.example.ui.theme.BrandMintSurface
 import com.example.ui.theme.BrandNavyMuted
@@ -94,8 +100,15 @@ fun ReportExplanationScreen(
   onRequestExplanation: () -> Unit,
   onRetryClick: () -> Unit,
   onNavigateBack: () -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  safetySummary: ReportSafetySummary? = null
 ) {
+  val showCompactSafetyBanner = safetySummary == null ||
+    safetySummary.hasCriticalOrUrgentFindings ||
+    safetySummary.hasAbnormalOrPositiveFindings ||
+    safetySummary.hasUncertainOrUnreadableFindings ||
+    safetySummary.overallClassification == SafetyBucket.INCOMPLETE_ASSESSMENT
+
   Column(
     modifier = modifier
       .fillMaxSize()
@@ -112,32 +125,56 @@ fun ReportExplanationScreen(
     when (explanationState) {
       is ReportExplanationState.Idle,
       is ReportExplanationState.WaitingForConsent -> {
+        if (showCompactSafetyBanner) {
+          SafetyCompactNoticeBanner(
+            safetySummary = safetySummary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+          )
+        }
         ExplanationConsentPromptState(
           isWaitingForConsent = explanationState is ReportExplanationState.WaitingForConsent,
           onRequestExplanation = onRequestExplanation,
           onNavigateBack = onNavigateBack,
           modifier = Modifier
-            .fillMaxSize()
+            .weight(1f)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp)
         )
       }
 
       is ReportExplanationState.Loading -> {
+        if (showCompactSafetyBanner) {
+          SafetyCompactNoticeBanner(
+            safetySummary = safetySummary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+          )
+        }
         ExplanationLoadingState(
           modifier = Modifier
-            .fillMaxSize()
+            .weight(1f)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp)
         )
       }
 
       is ReportExplanationState.Error -> {
+        if (showCompactSafetyBanner) {
+          SafetyCompactNoticeBanner(
+            safetySummary = safetySummary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+          )
+        }
         ExplanationErrorState(
           message = explanationState.message,
           isRetryable = explanationState.isRetryable,
           onRetryClick = onRetryClick,
           onNavigateBack = onNavigateBack,
           modifier = Modifier
-            .fillMaxSize()
+            .weight(1f)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp)
         )
       }
@@ -145,6 +182,7 @@ fun ReportExplanationScreen(
       is ReportExplanationState.Success -> {
         ExplanationSuccessContent(
           explanation = explanationState.explanation,
+          safetySummary = safetySummary,
           fileName = fileName,
           patientName = patientName,
           onNavigateBack = onNavigateBack
@@ -164,6 +202,7 @@ fun ReportExplanationScreen(
 @Composable
 private fun ExplanationSuccessContent(
   explanation: ReportExplanationResult,
+  safetySummary: ReportSafetySummary?,
   fileName: String?,
   patientName: String?,
   onNavigateBack: () -> Unit
@@ -178,6 +217,10 @@ private fun ExplanationSuccessContent(
     item {
       Spacer(modifier = Modifier.height(6.dp))
       SafetyDisclaimerBanner(disclaimer = explanation.safetyDisclaimer)
+    }
+
+    item {
+      SafetySummaryCard(safetySummary = safetySummary)
     }
 
     item {

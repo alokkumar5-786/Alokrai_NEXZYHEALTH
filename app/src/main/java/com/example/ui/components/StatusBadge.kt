@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -17,17 +18,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TestStatus
-import com.example.ui.theme.StatusAttentionAmber
-import com.example.ui.theme.StatusAttentionHoney
-import com.example.ui.theme.StatusInfoIndigo
-import com.example.ui.theme.StatusInfoLavender
-import com.example.ui.theme.StatusNormalMint
-import com.example.ui.theme.StatusNormalTeal
+import com.example.ui.theme.NexzyTheme
 
 @Composable
 fun StatusBadge(
@@ -35,29 +30,30 @@ fun StatusBadge(
   customLabel: String? = null,
   modifier: Modifier = Modifier
 ) {
+  val colors = NexzyTheme.colors
   val (bgColor, textColor, borderColor, icon) = when (status) {
     TestStatus.NORMAL -> Quad(
-      StatusNormalMint,
-      StatusNormalTeal,
-      StatusNormalTeal.copy(alpha = 0.3f),
+      colors.statusNormalContainer,
+      colors.statusNormalText,
+      colors.statusNormalBorder,
       Icons.Default.CheckCircle
     )
     TestStatus.ATTENTION -> Quad(
-      StatusAttentionHoney,
-      StatusAttentionAmber,
-      StatusAttentionAmber.copy(alpha = 0.4f),
+      colors.statusAttentionContainer,
+      colors.statusAttentionText,
+      colors.statusAttentionBorder,
       Icons.Default.Warning
     )
     TestStatus.REVIEW_NEEDED -> Quad(
-      StatusAttentionHoney,
-      StatusAttentionAmber,
-      StatusAttentionAmber.copy(alpha = 0.5f),
-      Icons.Default.Warning
+      colors.statusAlertContainer,
+      colors.statusAlertText,
+      colors.statusAlertBorder,
+      Icons.Default.ErrorOutline
     )
     TestStatus.INFORMATIONAL -> Quad(
-      StatusInfoLavender,
-      StatusInfoIndigo,
-      StatusInfoIndigo.copy(alpha = 0.3f),
+      colors.statusInfoContainer,
+      colors.statusInfoText,
+      colors.statusInfoBorder,
       Icons.Default.Info
     )
   }

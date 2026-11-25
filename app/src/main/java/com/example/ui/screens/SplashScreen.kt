@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,10 +37,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.ui.theme.BrandMintBackground
-import com.example.ui.theme.BrandNavyMuted
-import com.example.ui.theme.BrandNavyText
-import com.example.ui.theme.BrandTealPrimary
+import com.example.ui.theme.MidnightNavy
+import com.example.ui.theme.MistBlue
+import com.example.ui.theme.NexzyTheme
+import com.example.ui.theme.PaleBlue
+import com.example.ui.theme.TextOnDark
 
 @Composable
 fun SplashScreen(
@@ -49,6 +51,7 @@ fun SplashScreen(
 ) {
   val scale = remember { Animatable(0.85f) }
   val alpha = remember { Animatable(0f) }
+  val palette = NexzyTheme.colors
 
   LaunchedEffect(Unit) {
     scale.animateTo(
@@ -64,7 +67,8 @@ fun SplashScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(Color.White)
+      .background(palette.verticalHeroBrush)
+      .safeDrawingPadding()
       .padding(24.dp)
   ) {
     Column(
@@ -78,15 +82,16 @@ fun SplashScreen(
       Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-          .size(120.dp)
+          .size(124.dp)
           .clip(CircleShape)
-          .background(BrandMintBackground)
+          .background(TextOnDark)
+          .border(2.dp, MistBlue, CircleShape)
       ) {
         Image(
           painter = painterResource(id = R.drawable.nexzyhealth_icon_1794245550079),
           contentDescription = "NexzyHealth Logo",
           modifier = Modifier
-            .size(90.dp)
+            .size(92.dp)
             .clip(RoundedCornerShape(20.dp))
         )
       }
@@ -96,7 +101,7 @@ fun SplashScreen(
       Text(
         text = "NexzyHealth",
         style = MaterialTheme.typography.headlineLarge,
-        color = BrandTealPrimary,
+        color = TextOnDark,
         fontWeight = FontWeight.ExtraBold,
         letterSpacing = (-0.5).sp
       )
@@ -106,7 +111,7 @@ fun SplashScreen(
       Text(
         text = "Understand Your Health Report. Simply.",
         style = MaterialTheme.typography.titleMedium,
-        color = BrandNavyText,
+        color = PaleBlue,
         fontWeight = FontWeight.SemiBold,
         textAlign = TextAlign.Center
       )
@@ -116,7 +121,7 @@ fun SplashScreen(
       Text(
         text = "Demystifying complex laboratory numbers into plain, everyday language for you and your family.",
         style = MaterialTheme.typography.bodyMedium,
-        color = BrandNavyMuted,
+        color = MistBlue,
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(horizontal = 20.dp)
       )
@@ -125,7 +130,10 @@ fun SplashScreen(
 
       Button(
         onClick = onNavigateToNext,
-        colors = ButtonDefaults.buttonColors(containerColor = BrandTealPrimary),
+        colors = ButtonDefaults.buttonColors(
+          containerColor = TextOnDark,
+          contentColor = MidnightNavy
+        ),
         shape = RoundedCornerShape(28.dp),
         modifier = Modifier
           .fillMaxWidth(0.75f)
@@ -136,7 +144,7 @@ fun SplashScreen(
           text = if (isAuthenticated) "Continue to Dashboard" else "Get Started",
           fontSize = 16.sp,
           fontWeight = FontWeight.Bold,
-          color = Color.White
+          color = MidnightNavy
         )
       }
     }

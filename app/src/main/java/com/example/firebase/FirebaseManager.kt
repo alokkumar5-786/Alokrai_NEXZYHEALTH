@@ -22,7 +22,7 @@ object FirebaseManager {
       }
       true
     } catch (e: Exception) {
-      Log.e(TAG, "Error ensuring FirebaseApp is initialized: ${e.message}", e)
+      Log.e(TAG, "Firebase initialization check failed: ${e.javaClass.simpleName}")
       false
     }
   }
@@ -49,7 +49,7 @@ object FirebaseManager {
       val projectId = app.options.projectId
       val appId = app.options.applicationId
 
-      Log.i(TAG, "Firebase initialized successfully with project: $projectId, appId: $appId")
+      Log.i(TAG, "Firebase initialization succeeded.")
 
       FirebaseStatus(
         isConfigured = true,
@@ -60,7 +60,7 @@ object FirebaseManager {
         message = "Connected to Firebase project: $projectId"
       )
     } catch (e: Exception) {
-      Log.e(TAG, "Firebase initialization error: ${e.message}", e)
+      Log.e(TAG, "Firebase initialization failed: ${e.javaClass.simpleName}")
       FirebaseStatus(
         isConfigured = false,
         projectId = "",

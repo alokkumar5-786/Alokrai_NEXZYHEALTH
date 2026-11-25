@@ -1140,7 +1140,7 @@ class Task3DExplanationUnitTest {
   }
 
   @Test
-  fun fix1_hardening_hindiAndBengaliProfilesResolveToEnglishWithoutOverwritingUserProfile() {
+  fun fix1_hardening_approvedFourLanguagesResolveSafelyWithoutOverwritingUserProfile() {
     val hindiProfile = UserProfile(
       uid = "uid_lang_hi",
       email = "priya@example.com",
@@ -1148,22 +1148,29 @@ class Task3DExplanationUnitTest {
       preferredLanguage = "hi"
     )
     val bengaliProfile = hindiProfile.copy(uid = "uid_lang_bn", preferredLanguage = "bn")
+    val marathiProfile = hindiProfile.copy(uid = "uid_lang_mr", preferredLanguage = "mr")
 
-    // Resolver safely restricts stored Hindi/Bengali preferences to English until localized safety regexes exist
+    // Resolver supports the four approved launch languages and falls back to English for null/blank/unsupported codes
     assertEquals("English", resolveExplanationLanguage(null))
     assertEquals("English", resolveExplanationLanguage(""))
     assertEquals("English", resolveExplanationLanguage("en"))
-    assertEquals("English", resolveExplanationLanguage(hindiProfile.preferredLanguage))
-    assertEquals("English", resolveExplanationLanguage("Hindi"))
-    assertEquals("English", resolveExplanationLanguage(bengaliProfile.preferredLanguage))
-    assertEquals("English", resolveExplanationLanguage("Bengali"))
+    assertEquals("Hindi", resolveExplanationLanguage(hindiProfile.preferredLanguage))
+    assertEquals("Hindi", resolveExplanationLanguage("Hindi"))
+    assertEquals("Bengali", resolveExplanationLanguage(bengaliProfile.preferredLanguage))
+    assertEquals("Bengali", resolveExplanationLanguage("Bengali"))
+    assertEquals("Marathi", resolveExplanationLanguage(marathiProfile.preferredLanguage))
+    assertEquals("Marathi", resolveExplanationLanguage("Marathi"))
+    assertEquals("English", resolveExplanationLanguage("ta"))
+    assertEquals("English", resolveExplanationLanguage("pa"))
+    assertEquals("English", resolveExplanationLanguage("gu"))
     assertEquals("English", resolveExplanationLanguage("unknown"))
 
     // Original UserProfile language fields remain preserved (never deleted or overwritten)
     assertEquals("hi", hindiProfile.preferredLanguage)
     assertEquals("bn", bengaliProfile.preferredLanguage)
+    assertEquals("mr", marathiProfile.preferredLanguage)
 
-    // Even direct ViewModel calls passing Hindi/Bengali cannot bypass English across request, consent, or retry
+    // ViewModel and Parser safely resolve approved languages and fall back unsupported languages to English
     val lab = sampleLabExtraction()
     val explainer = FakeReportExplainer { _, extraction, lang ->
       val parsed = MedicalExplanationParser.parseExplanationJson(
@@ -1180,22 +1187,34 @@ class Task3DExplanationUnitTest {
     assertTrue(vm.uiState.value is ReportExplanationState.WaitingForConsent)
 
     vm.confirmConsentAndExplain(lab, language = "Hindi")
-    assertEquals(listOf("English"), explainer.observedLanguages)
+    assertEquals(listOf("Hindi"), explainer.observedLanguages)
     val firstResult = (vm.uiState.value as ReportExplanationState.Success).explanation
-    assertEquals("English", firstResult.language)
+    assertEquals("Hindi", firstResult.language)
 
     vm.retryExplanation(lab, language = "Bengali")
-    assertEquals(listOf("English", "English"), explainer.observedLanguages)
+    assertEquals(listOf("Hindi", "Bengali"), explainer.observedLanguages)
     val retryResult = (vm.uiState.value as ReportExplanationState.Success).explanation
-    assertEquals("English", retryResult.language)
+    assertEquals("Bengali", retryResult.language)
 
-    // Parser also enforces English even if invoked directly with Hindi/Bengali
+    vm.retryExplanation(lab, language = "ta")
+    assertEquals(listOf("Hindi", "Bengali", "English"), explainer.observedLanguages)
+    val fallbackResult = (vm.uiState.value as ReportExplanationState.Success).explanation
+    assertEquals("English", fallbackResult.language)
+
+    // Parser resolves supported languages cleanly and enforces English for unsupported languages
     val directParsed = MedicalExplanationParser.parseExplanationJsonSafe(
       "{\"conciseSummary\":\"Summary.\"}",
       lab,
-      language = "Hindi"
+      language = "Marathi"
     ).getOrThrow()
-    assertEquals("English", directParsed.language)
+    assertEquals("Marathi", directParsed.language)
+
+    val directUnsupported = MedicalExplanationParser.parseExplanationJsonSafe(
+      "{\"conciseSummary\":\"Summary.\"}",
+      lab,
+      language = "gu"
+    ).getOrThrow()
+    assertEquals("English", directUnsupported.language)
 
     // Original Task 3C medical values, units, reference ranges, and provenance remain untranslated & untouched
     val labItems = (retryResult.categoryExplanation as CategoryExplanation.Laboratory).items
@@ -1205,7 +1224,7 @@ class Task3DExplanationUnitTest {
     assertEquals(1, labItems[0].sourceItem.provenance.pageNumber)
     assertEquals("Hemoglobin 10.8 g/dL (12.0 - 15.5) L", labItems[0].sourceItem.provenance.sourceSnippet)
 
-    // UI discloses English-only explanation generation and does not silently claim Hindi/Bengali support
+    // Current Stage 1 UI consent dialog still reflects Stage 1 scope before Stage 2+ UI localization
     composeTestRule.setContent {
       MyApplicationTheme {
         ReportExplanationScreen(

@@ -28,7 +28,9 @@ class ExampleUnitTest {
     val languages = MockDataProvider.sampleLanguages
     assertEquals(7, languages.size)
     val supported = languages.filter { it.isSupported }.map { it.code }
-    assertEquals(listOf("en", "hi", "bn"), supported)
+    assertEquals(listOf("en", "hi", "bn", "mr"), supported)
+    val unsupported = languages.filterNot { it.isSupported }.map { it.code }
+    assertEquals(listOf("ta", "pa", "gu"), unsupported)
   }
 
   @Test

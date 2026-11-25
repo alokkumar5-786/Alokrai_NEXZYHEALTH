@@ -56,8 +56,13 @@ import com.example.model.FieldProvenance
 import com.example.model.FindingStatus
 import com.example.model.ProvenanceAvailability
 import com.example.model.RadiologyImpression
+import com.example.model.ReportSafetySummary
+import com.example.model.SafetyFindingAlert
+import com.example.model.UnavailableComparisonNotice
 import com.example.model.UniversalMedicalReport
 import com.example.ui.components.NexzyTopAppBar
+import com.example.ui.components.SafetyInlineItemNotice
+import com.example.ui.components.SafetySummaryCard
 import com.example.ui.theme.BrandMintBackground
 import com.example.ui.theme.BrandMintSurface
 import com.example.ui.theme.BrandNavyMuted
@@ -78,7 +83,8 @@ fun ExtractionResultScreen(
   onUploadAnotherClick: () -> Unit,
   onNavigateBack: () -> Unit,
   modifier: Modifier = Modifier,
-  onExplainReportClick: (() -> Unit)? = null
+  onExplainReportClick: (() -> Unit)? = null,
+  safetySummary: ReportSafetySummary? = null
 ) {
   Column(
     modifier = modifier
@@ -103,6 +109,15 @@ fun ExtractionResultScreen(
       return
     }
 
+    val alertsByItemKey = safetySummary?.alerts
+      ?.filter { it.itemKey != null }
+      ?.groupBy { it.itemKey!! }
+      ?: emptyMap()
+    val unavailableByItemKey = safetySummary?.unavailableComparisons
+      ?.filter { it.itemKey != null }
+      ?.associateBy { it.itemKey!! }
+      ?: emptyMap()
+
     LazyColumn(
       modifier = Modifier
         .fillMaxSize()
@@ -119,6 +134,10 @@ fun ExtractionResultScreen(
         )
       }
 
+      item {
+        SafetySummaryCard(safetySummary = safetySummary)
+      }
+
       when (val report = extractionResult.report) {
         is UniversalMedicalReport.Laboratory -> {
           item {
@@ -132,7 +151,12 @@ fun ExtractionResultScreen(
             item { EmptySectionNotice("No laboratory parameters were extracted from this document.") }
           } else {
             itemsIndexed(report.report.items) { index, item ->
-              LabItemCard(index = index, item = item)
+              LabItemCard(
+                index = index,
+                item = item,
+                safetyAlert = alertsByItemKey["lab:$index"]?.firstOrNull(),
+                unavailableNotice = unavailableByItemKey["lab:$index"]
+              )
             }
           }
         }
@@ -149,12 +173,20 @@ fun ExtractionResultScreen(
           }
           if (rad.anatomicalFindings.isNotEmpty()) {
             itemsIndexed(rad.anatomicalFindings) { index, finding ->
-              RadiologyFindingCard(index = index, finding = finding)
+              RadiologyFindingCard(
+                index = index,
+                finding = finding,
+                safetyAlert = alertsByItemKey["rad_finding:$index"]?.firstOrNull()
+              )
             }
           }
           if (rad.formalImpressions.isNotEmpty()) {
             itemsIndexed(rad.formalImpressions) { index, impression ->
-              RadiologyImpressionCard(index = index, impression = impression)
+              RadiologyImpressionCard(
+                index = index,
+                impression = impression,
+                safetyAlert = alertsByItemKey["rad_impression:$index"]?.firstOrNull()
+              )
             }
           }
           if (rad.anatomicalFindings.isEmpty() && rad.formalImpressions.isEmpty()) {
@@ -164,15 +196,22 @@ fun ExtractionResultScreen(
 
         is UniversalMedicalReport.Cardiology -> {
           val cardio: ExtractedCardiologyReport = report.report
+          val cardioAlert = alertsByItemKey.entries
+            .firstOrNull { it.key.startsWith("cardio:") }
+            ?.value
+            ?.firstOrNull()
           item {
-            CardiologyReportCard(report = cardio)
+            CardiologyReportCard(report = cardio, safetyAlert = cardioAlert)
           }
         }
 
         is UniversalMedicalReport.Specialised -> {
           val spec: ExtractedSpecialisedReport = report.report
           item {
-            SpecialisedReportCard(report = spec)
+            SpecialisedReportCard(
+              report = spec,
+              safetyAlert = alertsByItemKey["spec:diagnosticConclusion"]?.firstOrNull()
+            )
           }
         }
 
@@ -341,7 +380,12 @@ private fun ExtractionSummaryHeader(
 }
 
 @Composable
-private fun LabItemCard(index: Int, item: ExtractedLabItem) {
+private fun LabItemCard(
+  index: Int,
+  item: ExtractedLabItem,
+  safetyAlert: SafetyFindingAlert? = null,
+  unavailableNotice: UnavailableComparisonNotice? = null
+) {
   Card(
     shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(containerColor = SurfaceCard),
@@ -381,6 +425,11 @@ private fun LabItemCard(index: Int, item: ExtractedLabItem) {
         LabeledValueRow("Lab Flag", item.laboratoryFlag)
       }
 
+      if (safetyAlert != null || unavailableNotice != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        SafetyInlineItemNotice(alert = safetyAlert, unavailableNotice = unavailableNotice)
+      }
+
       Spacer(modifier = Modifier.height(8.dp))
       ProvenanceBlock(item.provenance, tag = "lab_item_provenance_$index")
     }
@@ -388,7 +437,11 @@ private fun LabItemCard(index: Int, item: ExtractedLabItem) {
 }
 
 @Composable
-private fun RadiologyFindingCard(index: Int, finding: AnatomicalFinding) {
+private fun RadiologyFindingCard(
+  index: Int,
+  finding: AnatomicalFinding,
+  safetyAlert: SafetyFindingAlert? = null
+) {
   Card(
     shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(containerColor = SurfaceCard),
@@ -414,6 +467,10 @@ private fun RadiologyFindingCard(index: Int, finding: AnatomicalFinding) {
       }
       Spacer(modifier = Modifier.height(6.dp))
       NullableTextValue(finding.observationText, missingLabel = "Observation text not reported")
+      if (safetyAlert != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        SafetyInlineItemNotice(alert = safetyAlert, unavailableNotice = null)
+      }
       Spacer(modifier = Modifier.height(8.dp))
       ProvenanceBlock(finding.provenance, tag = "rad_finding_provenance_$index")
     }
@@ -421,7 +478,11 @@ private fun RadiologyFindingCard(index: Int, finding: AnatomicalFinding) {
 }
 
 @Composable
-private fun RadiologyImpressionCard(index: Int, impression: RadiologyImpression) {
+private fun RadiologyImpressionCard(
+  index: Int,
+  impression: RadiologyImpression,
+  safetyAlert: SafetyFindingAlert? = null
+) {
   Card(
     shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(containerColor = BrandMintSurface),
@@ -440,6 +501,10 @@ private fun RadiologyImpressionCard(index: Int, impression: RadiologyImpression)
       }
       Spacer(modifier = Modifier.height(6.dp))
       NullableTextValue(impression.impressionText, missingLabel = "Impression text not reported")
+      if (safetyAlert != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        SafetyInlineItemNotice(alert = safetyAlert, unavailableNotice = null)
+      }
       Spacer(modifier = Modifier.height(8.dp))
       ProvenanceBlock(impression.provenance, tag = "rad_impression_provenance_$index")
     }
@@ -447,7 +512,10 @@ private fun RadiologyImpressionCard(index: Int, impression: RadiologyImpression)
 }
 
 @Composable
-private fun CardiologyReportCard(report: ExtractedCardiologyReport) {
+private fun CardiologyReportCard(
+  report: ExtractedCardiologyReport,
+  safetyAlert: SafetyFindingAlert? = null
+) {
   SectionCard(title = "Cardiology Findings") {
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -467,13 +535,20 @@ private fun CardiologyReportCard(report: ExtractedCardiologyReport) {
     LabeledValueRow("Ejection Fraction", report.ejectionFractionPercent)
     LabeledValueRow("Wall Motion", report.wallMotionFindings)
     LabeledValueRow("Formal Conclusion", report.formalConclusion)
+    if (safetyAlert != null) {
+      Spacer(modifier = Modifier.height(8.dp))
+      SafetyInlineItemNotice(alert = safetyAlert, unavailableNotice = null)
+    }
     Spacer(modifier = Modifier.height(8.dp))
     ProvenanceBlock(report.provenance, tag = "cardio_provenance")
   }
 }
 
 @Composable
-private fun SpecialisedReportCard(report: ExtractedSpecialisedReport) {
+private fun SpecialisedReportCard(
+  report: ExtractedSpecialisedReport,
+  safetyAlert: SafetyFindingAlert? = null
+) {
   SectionCard(title = "Specialised Pathology Findings") {
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -491,6 +566,10 @@ private fun SpecialisedReportCard(report: ExtractedSpecialisedReport) {
     LabeledValueRow("Microscopic Description", report.microscopicDescription)
     LabeledValueRow("Grading / Staging", report.gradingOrStaging)
     LabeledValueRow("Diagnostic Conclusion", report.diagnosticConclusion)
+    if (safetyAlert != null) {
+      Spacer(modifier = Modifier.height(8.dp))
+      SafetyInlineItemNotice(alert = safetyAlert, unavailableNotice = null)
+    }
     Spacer(modifier = Modifier.height(8.dp))
     ProvenanceBlock(report.provenance, tag = "specialised_provenance")
   }

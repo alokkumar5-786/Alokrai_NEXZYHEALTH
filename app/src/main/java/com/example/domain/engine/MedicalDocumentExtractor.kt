@@ -126,7 +126,7 @@ STRICT EXTRACTION RULES:
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      Log.e(TAG, "Document extraction failed: ${e.message}", e)
+      Log.e(TAG, "Document extraction failed: ${e.javaClass.simpleName}")
       Result.failure(e)
     }
   }
@@ -177,7 +177,7 @@ STRICT EXTRACTION RULES:
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      Log.e(TAG, "Bitmap extraction failed: ${e.message}", e)
+      Log.e(TAG, "Bitmap extraction failed: ${e.javaClass.simpleName}")
       Result.failure(e)
     }
   }

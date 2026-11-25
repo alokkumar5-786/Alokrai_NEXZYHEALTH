@@ -44,8 +44,8 @@ object MockDataProvider {
       code = "mr",
       englishName = "Marathi",
       nativeName = "मराठी",
-      isSupported = false,
-      subtitle = "लवकरच येत आहे • Planned release"
+      isSupported = true,
+      subtitle = "उपलब्ध आहे • Available now"
     ),
     LanguageOption(
       code = "pa",
@@ -252,7 +252,7 @@ object MockDataProvider {
       description = "Ideal for occasional personal checkups",
       features = listOf(
         "3 free report explanations per month",
-        "English, Hindi & Bengali support",
+        "English, Hindi, Bengali & Marathi support",
         "Key test parameter breakdown",
         "Doctor question suggestions",
         "Standard processing"

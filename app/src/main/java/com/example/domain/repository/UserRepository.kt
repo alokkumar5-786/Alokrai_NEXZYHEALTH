@@ -24,6 +24,11 @@ interface UserRepository {
   suspend fun updatePhoneVerification(uid: String, phoneNumber: String, isVerified: Boolean): Result<Unit>
 
   /**
+   * Updates the user's preferred explanation language and marks language selection as explicitly confirmed.
+   */
+  suspend fun updatePreferredLanguage(uid: String, languageCode: String): Result<Unit>
+
+  /**
    * Observes the real-time profile of the currently signed-in user.
    */
   fun getUserProfileFlow(uid: String): Flow<UserProfile?>

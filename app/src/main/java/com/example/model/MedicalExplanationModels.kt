@@ -1,5 +1,7 @@
 package com.example.model
 
+import java.util.Locale
+
 /**
  * Domain models and UI states for Task 3D: Category-Specific Plain-Language Medical Explanations.
  *
@@ -7,14 +9,45 @@ package com.example.model
  * values, units, reference ranges, flags, dates, FindingStatus, and FieldProvenance can never
  * be modified or fabricated by AI output.
  */
+enum class SupportedExplanationLanguage(
+  val code: String,
+  val canonicalName: String
+) {
+  ENGLISH(code = "en", canonicalName = "English"),
+  HINDI(code = "hi", canonicalName = "Hindi"),
+  BENGALI(code = "bn", canonicalName = "Bengali"),
+  MARATHI(code = "mr", canonicalName = "Marathi");
+
+  companion object {
+    val launchLanguages: List<SupportedExplanationLanguage> = entries
+
+    fun fromCodeOrName(value: String?): SupportedExplanationLanguage? {
+      val normalized = value?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() }
+        ?: return null
+      return entries.firstOrNull { entry ->
+        entry.code == normalized || entry.canonicalName.lowercase(Locale.ROOT) == normalized
+      }
+    }
+  }
+}
+
 object ExplanationConstants {
   const val DEFAULT_EXPLANATION_LANGUAGE = "English"
 
+  val SUPPORTED_LANGUAGE_CODES: Set<String> =
+    SupportedExplanationLanguage.launchLanguages.mapTo(linkedSetOf()) { it.code }
+
+  val SUPPORTED_LANGUAGE_NAMES: List<String> =
+    SupportedExplanationLanguage.launchLanguages.map { it.canonicalName }
+
   /**
-   * Production plain-language explanations are restricted to English until localized
-   * medication safety filtering is implemented and tested.
+   * Resolves requested language code or canonical display name to one of the four approved
+   * launch languages (English, Hindi, Bengali, Marathi). Unsupported, planned, blank, null,
+   * or invalid inputs safely fall back to English without mapping to another Indian language.
    */
-  fun resolveSafeExplanationLanguage(requestedLanguage: String?): String = DEFAULT_EXPLANATION_LANGUAGE
+  fun resolveSafeExplanationLanguage(requestedLanguage: String?): String =
+    SupportedExplanationLanguage.fromCodeOrName(requestedLanguage)?.canonicalName
+      ?: DEFAULT_EXPLANATION_LANGUAGE
 
   const val MEDICAL_EXPLANATION_DISCLAIMER =
     "AI-Generated Explanation (Not Medically Verified): This plain-language summary is " +

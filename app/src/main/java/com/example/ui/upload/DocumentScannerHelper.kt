@@ -62,7 +62,7 @@ object DocumentScannerHelper {
         onIntentSenderReady(request)
       }
       .addOnFailureListener { exception ->
-        Log.e(TAG, "Failed to start document scanner: ${exception.message}", exception)
+        Log.e(TAG, "Failed to start document scanner: ${exception.javaClass.simpleName}")
         val userFriendlyMessage = when {
           exception.message?.contains("Google Play Services", ignoreCase = true) == true ||
           exception.message?.contains("Play Services", ignoreCase = true) == true ->

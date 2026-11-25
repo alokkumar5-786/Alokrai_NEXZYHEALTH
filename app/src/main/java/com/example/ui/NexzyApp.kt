@@ -21,21 +21,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.data.MockDataProvider
 import android.app.Application
 import androidx.compose.ui.platform.LocalContext
+import com.example.domain.engine.SafetyFindingEvaluator
 import com.example.model.ExplanationConstants
 import com.example.model.FamilyMember
+import com.example.model.SupportedExplanationLanguage
+import com.example.model.UserProfile
 import com.example.navigation.Screen
 import com.example.ui.auth.AuthState
 import com.example.ui.auth.AuthViewModel
 import com.example.ui.auth.EmailLinkViewModel
 import com.example.ui.auth.EmailLoginViewModel
+import com.example.ui.auth.LanguageUpdateState
 import com.example.ui.auth.PhoneVerificationViewModel
+import java.util.Locale
 import com.example.ui.components.NexzyBottomBar
 import com.example.ui.explanation.ReportExplanationViewModel
 import com.example.ui.screens.AudioExplanationScreen
@@ -60,6 +67,12 @@ import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.ReportUploadScreen
 import com.example.ui.screens.SubscriptionScreen
 import com.example.ui.screens.UploadProgressScreen
+import android.content.Intent
+import android.widget.Toast
+import com.example.model.HealthPolicyCopy
+import com.example.ui.policy.HealthPolicyViewModel
+import com.example.ui.screens.HealthPolicyFlowScreen
+import com.example.ui.screens.ReportReaderOnboardingScreen
 import com.example.ui.screens.UploadScreen
 import com.example.ui.screens.UserProfileScreen
 import com.example.ui.screens.WelcomeScreen
@@ -96,8 +109,14 @@ fun NexzyApp(
   val reportExplanationViewModel: ReportExplanationViewModel = viewModel(
     factory = ReportExplanationViewModel.provideFactory(application)
   )
+  val healthPolicyViewModel: HealthPolicyViewModel = viewModel(
+    factory = HealthPolicyViewModel.provideFactory(application)
+  )
 
   val uploadStateSnapshot by reportUploadViewModel.uiState.collectAsState()
+  val currentSafetySummary = remember(uploadStateSnapshot.extractionResult) {
+    uploadStateSnapshot.extractionResult?.let { SafetyFindingEvaluator.evaluate(it) }
+  }
   LaunchedEffect(uploadStateSnapshot.extractionResult) {
     reportExplanationViewModel.syncForExtractionResult(uploadStateSnapshot.extractionResult)
   }
@@ -115,11 +134,13 @@ fun NexzyApp(
     if (authState is AuthState.Unauthenticated) {
       val authenticatedRoutes = setOf(
         Screen.Home.route,
+        Screen.ReportReaderOnboarding.route,
         Screen.ReportHistory.route,
         Screen.UserProfile.route,
         Screen.UploadReport.route,
         Screen.ScanReport.route,
         Screen.UploadProgress.route,
+        Screen.HealthPolicy.route,
         Screen.ExtractionResult.route,
         Screen.ReportExplanation.route,
         Screen.DetailedResults.route,
@@ -129,14 +150,16 @@ fun NexzyApp(
         Screen.Privacy.route,
         Screen.Settings.route,
         Screen.PhoneEntry.route,
-        Screen.OtpVerification.route
+        Screen.OtpVerification.route,
+        Screen.LanguageSelection.route
       )
-      if (currentRoute in authenticatedRoutes) {
+      if (currentRoute in authenticatedRoutes || currentRoute.startsWith(Screen.LanguageSelection.route)) {
         emailLoginViewModel.reset()
         emailLinkViewModel.reset()
         phoneVerificationViewModel.resetAll()
         reportExplanationViewModel.clearSessionAndRevokeConsent(currentUserUid)
         reportUploadViewModel.removeSelectedDocument()
+        healthPolicyViewModel.deleteDocumentAndReset()
         navController.navigate(Screen.Welcome.route) {
           popUpTo(0) { inclusive = true }
         }
@@ -153,18 +176,17 @@ fun NexzyApp(
     }
   }
 
-  // Production explanation language comes from authenticated UserProfile.preferredLanguage (default English),
-  // never from MockDataProvider.sampleLanguages.
+  // Single source of truth: authenticated UserProfile.preferredLanguage (default English),
+  // never MockDataProvider or transient local state.
   val authenticatedProfile = (authState as? AuthState.Authenticated)?.profile
+  val activeLanguageCode = remember(authenticatedProfile?.preferredLanguage) {
+    SupportedExplanationLanguage.fromCodeOrName(authenticatedProfile?.preferredLanguage)?.code ?: "en"
+  }
   val explanationLanguage = remember(authenticatedProfile?.preferredLanguage) {
     resolveExplanationLanguage(authenticatedProfile?.preferredLanguage)
   }
-
-  // Caregiver App State
-  var selectedLanguageCode by remember { mutableStateOf("en") }
-  val currentLanguageName = remember(selectedLanguageCode) {
-    MockDataProvider.sampleLanguages.firstOrNull { it.code == selectedLanguageCode }?.englishName ?: "English"
-  }
+  val currentLanguageName = explanationLanguage
+  val languageUpdateState by authViewModel.languageUpdateState.collectAsState()
   var freeCredits by remember { mutableIntStateOf(3) }
   var reportsAnalysed by remember { mutableIntStateOf(14) }
   val familyMembersList = remember { mutableStateListOf(*MockDataProvider.sampleFamilyMembers.toTypedArray()) }
@@ -214,7 +236,8 @@ fun NexzyApp(
             isAuthenticated = isUserAuthenticated,
             onNavigateToNext = {
               if (isUserAuthenticated) {
-                navController.navigate(Screen.Home.route) {
+                val nextRoute = PostLoginLanguageRouter.resolveSplashAuthenticatedDestination(authState)
+                navController.navigate(nextRoute) {
                   popUpTo(Screen.Splash.route) { inclusive = true }
                 }
               } else {
@@ -262,16 +285,12 @@ fun NexzyApp(
             viewModel = emailLinkViewModel,
             onAuthSuccess = {
               emailLoginViewModel.reset()
-              authViewModel.checkSession()
-              val profile = emailLinkViewModel.uiState.value.userProfile
-              if (profile?.phoneVerified == true) {
-                navController.navigate(Screen.Home.route) {
-                  popUpTo(Screen.Welcome.route) { inclusive = true }
-                }
-              } else {
-                navController.navigate(Screen.PhoneEntry.route) {
-                  popUpTo(Screen.Welcome.route) { inclusive = true }
-                }
+              val syncedUser = emailLinkViewModel.uiState.value.authenticatedUser
+              val syncedProfile = emailLinkViewModel.uiState.value.userProfile
+              authViewModel.syncAuthenticatedSession(syncedUser, syncedProfile)
+              val nextRoute = PostLoginLanguageRouter.resolveInitialAuthenticatedDestination(syncedProfile)
+              navController.navigate(nextRoute) {
+                popUpTo(0) { inclusive = true }
               }
             },
             onRequestNewLink = {
@@ -323,22 +342,64 @@ fun NexzyApp(
           )
         }
 
-        // 6. Language Selection
-        composable(Screen.LanguageSelection.route) {
-          LanguageScreen(
-            languages = MockDataProvider.sampleLanguages,
-            selectedLanguageCode = selectedLanguageCode,
-            onLanguageSelected = { selectedLanguageCode = it },
-            onConfirm = {
-              if (navController.previousBackStackEntry != null) {
+        // 6. Language Selection (Post-login onboarding & Settings/Profile/Home edits)
+        composable(
+          route = Screen.LanguageSelection.routePattern,
+          arguments = listOf(
+            navArgument("onboarding") {
+              type = NavType.BoolType
+              defaultValue = false
+            }
+          )
+        ) { backStackEntry ->
+          val isOnboarding = backStackEntry.arguments?.getBoolean("onboarding") ?: false
+          var draftLanguageCode by remember(activeLanguageCode) {
+            mutableStateOf(activeLanguageCode)
+          }
+
+          LaunchedEffect(Unit) {
+            authViewModel.resetLanguageUpdateState()
+          }
+
+          LaunchedEffect(languageUpdateState) {
+            if (languageUpdateState is LanguageUpdateState.Success) {
+              authViewModel.resetLanguageUpdateState()
+              if (isOnboarding) {
+                val nextRoute = PostLoginLanguageRouter.resolvePostLanguageOnboardingDestination(authenticatedProfile)
+                navController.navigate(nextRoute) {
+                  popUpTo(0) { inclusive = true }
+                }
+              } else if (navController.previousBackStackEntry != null) {
                 navController.popBackStack()
               } else {
                 navController.navigate(Screen.Home.route) {
-                  popUpTo(Screen.Splash.route) { inclusive = true }
+                  popUpTo(0) { inclusive = true }
                 }
               }
+            }
+          }
+
+          LanguageScreen(
+            languages = MockDataProvider.sampleLanguages,
+            selectedLanguageCode = draftLanguageCode,
+            onLanguageSelected = { selectedCode ->
+              draftLanguageCode = selectedCode
+              if (languageUpdateState is LanguageUpdateState.Error) {
+                authViewModel.resetLanguageUpdateState()
+              }
             },
-            onNavigateBack = { navController.popBackStack() }
+            onConfirm = {
+              authViewModel.updatePreferredLanguage(draftLanguageCode)
+            },
+            onNavigateBack = {
+              if (!isOnboarding && languageUpdateState !is LanguageUpdateState.Saving) {
+                authViewModel.resetLanguageUpdateState()
+                navController.popBackStack()
+              }
+            },
+            isOnboarding = isOnboarding,
+            isSaving = languageUpdateState is LanguageUpdateState.Saving,
+            errorMessage = (languageUpdateState as? LanguageUpdateState.Error)?.message
           )
         }
 
@@ -353,13 +414,86 @@ fun NexzyApp(
             onScanReportClick = { navController.navigate(Screen.ScanReport.route) },
             onUploadReportClick = { navController.navigate(Screen.UploadReport.route) },
             onSampleExplanationClick = { navController.navigate(Screen.SampleExplanation.route) },
-            onLanguageClick = { navController.navigate(Screen.LanguageSelection.route) },
+            onLanguageClick = { navController.navigate(Screen.LanguageSelection.createRoute(onboarding = false)) },
             onHelpClick = { navController.navigate(Screen.HelpSupport.route) },
             onViewAllReportsClick = { navController.navigate(Screen.ReportHistory.route) },
             onReportItemClick = { report ->
               navController.navigate(Screen.SampleExplanation.route)
             },
-            onSubscriptionClick = { navController.navigate(Screen.Subscription.route) }
+            onSubscriptionClick = { navController.navigate(Screen.Subscription.route) },
+            onExplainHealthPolicyClick = {
+              healthPolicyViewModel.startFlow(activeLanguageCode)
+              navController.navigate(Screen.HealthPolicy.route) {
+                launchSingleTop = true
+              }
+            },
+            onReportReaderGuideClick = {
+              navController.navigate(Screen.ReportReaderOnboarding.route) {
+                launchSingleTop = true
+              }
+            }
+          )
+        }
+
+        // 7a. Medical Report Reader Onboarding Carousel (Accessible from Home)
+        composable(Screen.ReportReaderOnboarding.route) {
+          ReportReaderOnboardingScreen(
+            onNavigateBack = { navController.popBackStack() },
+            onStartUploadClick = {
+              navController.navigate(Screen.UploadReport.route) {
+                popUpTo(Screen.ReportReaderOnboarding.route) { inclusive = true }
+                launchSingleTop = true
+              }
+            },
+            onStartScanClick = {
+              navController.navigate(Screen.ScanReport.route) {
+                popUpTo(Screen.ReportReaderOnboarding.route) { inclusive = true }
+                launchSingleTop = true
+              }
+            },
+            onTryDemoClick = {
+              navController.navigate(Screen.SampleExplanation.route) {
+                popUpTo(Screen.ReportReaderOnboarding.route) { inclusive = true }
+                launchSingleTop = true
+              }
+            }
+          )
+        }
+
+        // 7b. Explain My Health Policy (Ephemeral 4-step flow)
+        composable(Screen.HealthPolicy.route) {
+          val policyState by healthPolicyViewModel.uiState.collectAsState()
+          HealthPolicyFlowScreen(
+            uiState = policyState,
+            onSelectLanguage = { code -> healthPolicyViewModel.selectLanguage(code) },
+            onConfirmLanguage = { healthPolicyViewModel.confirmLanguageAndProceed() },
+            onBackToLanguage = { healthPolicyViewModel.goBackToLanguageStep() },
+            onFilesPicked = { uris -> healthPolicyViewModel.onFilesSelected(uris) },
+            onRemoveAttachment = { id -> healthPolicyViewModel.removeAttachment(id) },
+            onPastedTextChanged = { text -> healthPolicyViewModel.onPastedTextChanged(text) },
+            onDismissError = { healthPolicyViewModel.clearError() },
+            onAnalyzePolicy = { healthPolicyViewModel.analyzePolicy() },
+            onCancelLoading = { healthPolicyViewModel.cancelAnalysis() },
+            onShareSummary = { summaryText ->
+              val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "NexzyHealth — Explain My Health Policy")
+                putExtra(Intent.EXTRA_TEXT, summaryText)
+              }
+              context.startActivity(
+                Intent.createChooser(shareIntent, "Share summary")
+              )
+            },
+            onDeleteDocumentNow = {
+              val deletedMsg = HealthPolicyCopy.forLanguage(policyState.selectedLanguageCode).deletedToastMessage
+              healthPolicyViewModel.deleteDocumentAndReset()
+              Toast.makeText(context, deletedMsg, Toast.LENGTH_SHORT).show()
+            },
+            onExitToHome = {
+              healthPolicyViewModel.deleteDocumentAndReset()
+              navController.popBackStack(Screen.Home.route, inclusive = false)
+            },
+            buildShareText = { healthPolicyViewModel.buildShareSummary() }
           )
         }
 
@@ -449,7 +583,8 @@ fun NexzyApp(
               navController.navigate(Screen.ReportExplanation.route) {
                 launchSingleTop = true
               }
-            }
+            },
+            safetySummary = currentSafetySummary
           )
         }
 
@@ -484,7 +619,8 @@ fun NexzyApp(
                 language = explanationLanguage
               )
             },
-            onNavigateBack = { navController.popBackStack() }
+            onNavigateBack = { navController.popBackStack() },
+            safetySummary = currentSafetySummary
           )
         }
 
@@ -547,7 +683,7 @@ fun NexzyApp(
             onNavigateToPrivacy = { navController.navigate(Screen.Privacy.route) },
             onNavigateToHelp = { navController.navigate(Screen.HelpSupport.route) },
             onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-            onNavigateToLanguage = { navController.navigate(Screen.LanguageSelection.route) },
+            onNavigateToLanguage = { navController.navigate(Screen.LanguageSelection.createRoute(onboarding = false)) },
             onNavigateToPhoneVerification = { navController.navigate(Screen.PhoneEntry.route) },
             onLogoutClick = {
               reportExplanationViewModel.clearSessionAndRevokeConsent(currentUserUid)
@@ -556,6 +692,7 @@ fun NexzyApp(
               emailLinkViewModel.reset()
               phoneVerificationViewModel.resetAll()
               reportUploadViewModel.removeSelectedDocument()
+              healthPolicyViewModel.deleteDocumentAndReset()
               navController.navigate(Screen.Welcome.route) {
                 popUpTo(0) { inclusive = true }
               }
@@ -592,6 +729,7 @@ fun NexzyApp(
               emailLinkViewModel.reset()
               phoneVerificationViewModel.resetAll()
               reportUploadViewModel.removeSelectedDocument()
+              healthPolicyViewModel.deleteDocumentAndReset()
               navController.navigate(Screen.Welcome.route) {
                 popUpTo(0) { inclusive = true }
               }
@@ -611,11 +749,52 @@ fun NexzyApp(
         composable(Screen.Settings.route) {
           SettingsScreen(
             selectedLanguage = currentLanguageName,
-            onNavigateToLanguage = { navController.navigate(Screen.LanguageSelection.route) },
+            onNavigateToLanguage = { navController.navigate(Screen.LanguageSelection.createRoute(onboarding = false)) },
             onNavigateBack = { navController.popBackStack() }
           )
         }
       }
+    }
+  }
+}
+
+internal object PostLoginLanguageRouter {
+  private val LEGACY_EXPLICIT_NON_ENGLISH_CODES = setOf("hi", "bn", "mr")
+
+  fun hasCompletedLanguageSelection(profile: UserProfile?): Boolean {
+    if (profile == null) return false
+    if (profile.preferredLanguageSelected) return true
+    val normalized = profile.preferredLanguage.trim().lowercase(Locale.ROOT)
+    return normalized in LEGACY_EXPLICIT_NON_ENGLISH_CODES
+  }
+
+  fun requiresPostLoginLanguageSelection(profile: UserProfile?): Boolean =
+    !hasCompletedLanguageSelection(profile)
+
+  fun resolveInitialAuthenticatedDestination(profile: UserProfile?): String {
+    return if (requiresPostLoginLanguageSelection(profile)) {
+      Screen.LanguageSelection.createRoute(onboarding = true)
+    } else if (profile?.phoneVerified == true) {
+      Screen.Home.route
+    } else {
+      Screen.PhoneEntry.route
+    }
+  }
+
+  fun resolvePostLanguageOnboardingDestination(profile: UserProfile?): String {
+    return if (profile?.phoneVerified == true) {
+      Screen.Home.route
+    } else {
+      Screen.PhoneEntry.route
+    }
+  }
+
+  fun resolveSplashAuthenticatedDestination(authState: AuthState): String {
+    val profile = (authState as? AuthState.Authenticated)?.profile
+    return if (profile != null && requiresPostLoginLanguageSelection(profile)) {
+      Screen.LanguageSelection.createRoute(onboarding = true)
+    } else {
+      Screen.Home.route
     }
   }
 }

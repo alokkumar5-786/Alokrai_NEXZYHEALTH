@@ -15,6 +15,7 @@ import com.example.model.FindingStatus
 import com.example.model.MedicalDocumentCategory
 import com.example.model.MedicalTermDefinition
 import com.example.model.ReportExplanationResult
+import com.example.model.SupportedExplanationLanguage
 import com.example.model.UniversalMedicalReport
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
@@ -41,149 +42,6 @@ object MedicalExplanationParser {
   @Suppress("UNCHECKED_CAST")
   private val jsonObjectAdapter: JsonAdapter<Map<String, Any?>> = moshi.adapter(
     Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
-  )
-
-  private const val SAFE_FALLBACK_SUMMARY =
-    "Plain-language summary is limited for this document. Please review the preserved original extracted entries below with your doctor."
-
-  private val UNCERTAIN_STATUS_NOTE =
-    "Marked uncertain or unreadable in the source document; please check the original report with your doctor."
-
-  private val NOT_MENTIONED_STATUS_NOTE =
-    "Finding status was not mentioned in the source document."
-
-  private data class AbbreviationRule(
-    val codeRegex: Regex,
-    val expansionRegex: Regex
-  )
-
-  private val AMBIGUOUS_ABBREVIATION_RULES = listOf(
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])O\\.?D\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(once\\s+(?:a\\s+)?daily|once\\s+(?:per\\s+|a\\s+)?day|one\\s+time\\s+(?:a\\s+|per\\s+)?day|every\\s+day|right\\s+eye|oculus\\s+dexter)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])Q\\.?D\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(once\\s+(?:a\\s+)?daily|once\\s+(?:per\\s+|a\\s+)?day|one\\s+time\\s+(?:a\\s+|per\\s+)?day|every\\s+day|each\\s+day)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])(?:B\\.?D\\.?|B\\.?I\\.?D\\.?)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(twice\\s+(?:a\\s+)?daily|twice\\s+(?:per\\s+|a\\s+)?day|two\\s+times\\s+(?:a\\s+|per\\s+)?day|2\\s+times\\s+(?:a\\s+)?day|every\\s+12\\s+hours)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])(?:T\\.?I\\.?D\\.?|T\\.?D\\.?S\\.?)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(three\\s+times\\s+(?:a\\s+)?daily|three\\s+times\\s+(?:per\\s+|a\\s+)?day|thrice\\s+(?:a\\s+)?day|thrice\\s+daily|3\\s+times\\s+(?:a\\s+)?day|every\\s+8\\s+hours)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])Q\\.?I\\.?D\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(four\\s+times\\s+(?:a\\s+)?daily|four\\s+times\\s+(?:per\\s+|a\\s+)?day|4\\s+times\\s+(?:a\\s+)?day|every\\s+6\\s+hours)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])(?:P\\.?R\\.?N\\.?|S\\.?O\\.?S\\.?)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(as\\s+needed|when\\s+needed|if\\s+needed|as\\s+required|when\\s+required|only\\s+when|when\\s+symptoms)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])H\\.?S\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex(
-        "\\b(at\\s+bedtime|before\\s+(?:bed|sleep|sleeping)|bedtime|every\\s+night|at\\s+night|half[- ]strength)\\b",
-        RegexOption.IGNORE_CASE
-      )
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])Q\\.?O\\.?D\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex("\\b(every\\s+other\\s+day|alternate\\s+days?)\\b", RegexOption.IGNORE_CASE)
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])A\\.?C\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex("\\b(before\\s+(?:meals?|eating|food)|on\\s+an\\s+empty\\s+stomach)\\b", RegexOption.IGNORE_CASE)
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])P\\.?C\\.?(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex("\\b(after\\s+(?:meals?|eating|food))\\b", RegexOption.IGNORE_CASE)
-    ),
-    AbbreviationRule(
-      codeRegex = Regex("(?<![A-Za-z0-9])(?:O\\.?S\\.?|O\\.?U\\.?)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE),
-      expansionRegex = Regex("\\b(left\\s+eye|oculus\\s+sinister|both\\s+eyes|each\\s+eye|oculus\\s+uterque)\\b", RegexOption.IGNORE_CASE)
-    )
-  )
-
-  private val PROTECTIVE_MEDICATION_WARNING_REGEX = Regex(
-    "\\b(?:do\\s+not|don't|never|should\\s+not|must\\s+not)\\s+(?:ever\\s+)?" +
-      "(?:stop(?:\\s+taking|\\s+using)?|discontinue|halt(?:\\s+taking|\\s+using)?|cease|quit|pause|hold|skip|omit|" +
-      "change|alter|adjust|modify|increase|decrease|reduce|double|taper(?:\\s+off)?|start|restart)" +
-      "[^.!?;\\n]*?\\b(?:without\\s+(?:first\\s+)?(?:asking|consulting|speaking\\s+(?:to|with)|talking\\s+(?:to|with)|checking\\s+with)\\s+(?:a\\s+|your\\s+)?(?:doctor|physician|prescriber|pharmacist|clinician|healthcare\\s+provider)|" +
-      "unless\\s+(?:told|directed|advised|instructed)\\s+by\\s+(?:a\\s+|your\\s+)?(?:doctor|physician|prescriber|pharmacist|clinician|healthcare\\s+provider))",
-    RegexOption.IGNORE_CASE
-  )
-
-  private val CONSULT_BEFORE_CHANGE_WARNING_REGEX = Regex(
-    "\\b(?:always\\s+)?(?:ask|consult|check\\s+with|speak\\s+(?:to|with)|talk\\s+(?:to|with))\\s+" +
-      "(?:a\\s+|your\\s+)?(?:doctor|physician|prescriber|pharmacist|clinician|healthcare\\s+provider)\\s+" +
-      "before\\s+(?:stopping|discontinuing|halting|changing|altering|adjusting|increasing|decreasing|reducing|tapering|starting|omitting|skipping)\\b[^.!?;\\n]*",
-    RegexOption.IGNORE_CASE
-  )
-
-  private val UNSAFE_MEDICATION_ADVICE_REGEX = Regex(
-    "\\b(" +
-      // Stopping / halting / pausing / omitting / starting directives
-      "stop\\s+taking|stop\\s+using|stop\\s+this\\s+(?:med|medicine|medication|drug|pill|tablet|capsule)|" +
-      "discontinue(?:\\s+(?:taking|using|this))?|halt\\s+(?:taking|using|this)|cease\\s+(?:taking|using)|quit\\s+(?:taking|using)|" +
-      "pause\\s+(?:taking|using|this)|omit\\s+(?:a|an|one|the|your)\\s+(?:dose|pill|tablet|capsule)|" +
-      "skip\\s+(?:a|an|one|the|your)\\s+(?:dose|pill|tablet|capsule)|start\\s+taking|begin\\s+taking|" +
-      // Tapering / changing / adjusting / doubling / pill-count modifications
-      "taper\\s*(?:off|down)?|wean\\s*(?:off|yourself)|" +
-      "increase\\s+(?:the\\s+|your\\s+)?(?:dose|dosage|frequency|duration|amount)|" +
-      "decrease\\s+(?:the\\s+|your\\s+)?(?:dose|dosage|frequency|duration|amount)|" +
-      "reduce\\s+(?:the\\s+|your\\s+)?(?:dose|dosage|frequency|duration|amount)|" +
-      "lower\\s+(?:the\\s+|your\\s+)?(?:dose|dosage)|raise\\s+(?:the\\s+|your\\s+)?(?:dose|dosage)|" +
-      "double\\s+(?:the\\s+|your\\s+|up\\s+(?:on\\s+)?(?:the\\s+|your\\s+)?)?(?:dose|dosage|pills?|tablets?|capsules?)?|" +
-      "halve\\s+(?:the\\s+|your\\s+)?(?:dose|pill|tablet)|cut\\s+(?:the\\s+|your\\s+)?(?:dose|pill|tablet)\\s+in\\s+half|" +
-      "split\\s+(?:the\\s+|your\\s+)?(?:dose|pill|tablet)|" +
-      "take\\s+(?:two|2|three|3|four|4|extra|double|half|additional|more|fewer)\\s+(?:pills?|tablets?|capsules?|doses?)|" +
-      "take\\s+instead|switch\\s+(?:this\\s+|your\\s+(?:medicine|medication|drug)\\s+)?to\\b|" +
-      "change\\s+(?:the\\s+|your\\s+)?(?:dose|dosage|frequency|duration|schedule)|" +
-      "adjust\\s+(?:the\\s+|your\\s+)?(?:dose|dosage|frequency|duration|schedule)|" +
-      "modify\\s+(?:the\\s+|your\\s+)?(?:dose|dosage|frequency|duration|schedule)|" +
-      // Prescribing recommendations
-      "you\\s+should\\s+(?:take|start|stop|switch|increase|decrease|adjust|taper)|" +
-      "we\\s+recommend\\s+(?:taking|starting|stopping|changing)|" +
-      "i\\s+recommend\\s+(?:taking|starting|stopping|changing)|" +
-      "consider\\s+(?:taking|starting|stopping|switching)|" +
-      "you\\s+need\\s+to\\s+(?:take|start|stop|increase|decrease)|" +
-      // Unsupported medication purpose / indication (condition-agnostic)
-      "indicated\\s+(?:for|to\\s+treat|in\\s+the\\s+treatment\\s+of)|" +
-      "prescribed\\s+(?:for|to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent|ease|address|help)|because)|" +
-      "used\\s+(?:to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent|ease|address|help)|for\\s+(?!your\\s+(?:review|record|records|reference|visit|appointment|clarity|information)|measuring|checking|recording|evaluating|assessing|examining|imaging|viewing|detecting|screening|identifying|observing|monitoring|displaying|tracking|logging|informational|diagnostic|reference|\\d)[a-z]+)|" +
-      "meant\\s+(?:for|to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent))|" +
-      "intended\\s+(?:for|to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent))|" +
-      "given\\s+(?:for|to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent))|" +
-      "taken\\s+(?:for|to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent))|" +
-      "(?:to|for)\\s+(?:treat|treating|cure|curing|relieve|relieving|alleviate|alleviating)\\s+[a-z]+|" +
-      "(?:treats|cures|relieves|alleviates)\\s+[a-z]+|" +
-      "(?:helps|designed|formulated|works)\\s+(?:to\\s+)?(?:treat|manage|control|cure|relieve|lower|reduce|prevent)\\s+[a-z]+|" +
-      "(?:this\\s+)?(?:medication|medicine|drug|tablet|capsule|pill)\\s+(?:that|which)\\s+(?:treats|manages|controls|lowers|reduces|prevents|relieves|cures)|" +
-      "(?:this\\s+)?(?:medication|medicine|drug|tablet|capsule|pill)\\s+(?:is|are)\\s+(?:primarily\\s+)?for\\s+(?!\\d|oral|external|topical|informational|your\\s+(?:review|record|records|reference|visit|appointment|clarity|information))[a-z]+|" +
-      "(?:take|taking)\\s+(?:this\\s+|the\\s+|your\\s+)?(?:medication|medicine|drug|pill|tablet|capsule|it)\\s+(?:for|to\\s+(?:treat|manage|control|cure|relieve|lower|reduce|prevent))\\s+(?!\\d|a\\s+(?:day|week|month|year)|one\\s+|two\\s+|three\\s+|four\\s+|five\\s+|six\\s+|seven\\s+|breakfast|lunch|dinner|meals?|bedtime|your\\s+(?:next|doctor|review|records?))[a-z]+" +
-      ")\\b",
-    RegexOption.IGNORE_CASE
   )
 
   private val CARDIOLOGY_METRIC_SPECS = listOf(
@@ -237,6 +95,11 @@ object MedicalExplanationParser {
       throw IllegalArgumentException("Model returned empty explanation JSON.")
     }
 
+    val resolvedLanguageEnum: SupportedExplanationLanguage =
+      LocalizedSafetyResources.resolveLanguage(language)
+    val resolvedLanguageName = resolvedLanguageEnum.canonicalName
+    val safetyStrings = LocalizedSafetyResources.stringsFor(resolvedLanguageEnum)
+
     val root = jsonObjectAdapter.fromJson(cleanJson)
       ?: throw IllegalArgumentException("Model returned invalid explanation JSON.")
 
@@ -247,14 +110,14 @@ object MedicalExplanationParser {
         ?.map { med ->
           MedicationAbbreviationContext(
             med = med,
-            unexpandedRules = unexpandedAbbreviationRulesForMedication(med)
+            unexpandedRules = unexpandedAbbreviationRulesForMedication(med, resolvedLanguageEnum)
           )
         }
         ?: emptyList()
 
     val uncertaintyNotes = LinkedHashSet<String>()
     root.optStringList("uncertaintyNotes").forEach { note ->
-      val safeNote = sanitizeNarrativeOrNull(note, medAbbreviationContexts)
+      val safeNote = sanitizeNarrativeOrNull(note, medAbbreviationContexts, resolvedLanguageEnum)
       if (safeNote != null) {
         uncertaintyNotes.add(safeNote)
       }
@@ -275,37 +138,47 @@ object MedicalExplanationParser {
           when (src.findingStatus) {
             FindingStatus.UNCERTAIN_OR_UNREADABLE -> {
               uncertaintyNotes.add(
-                "${src.originalName ?: "Item ${idx + 1}"}: $UNCERTAIN_STATUS_NOTE"
+                "${src.originalName ?: safetyStrings.itemLabel(idx + 1)}: ${safetyStrings.uncertainStatusNote}"
               )
               ExplainedLabItem(
                 sourceItem = src,
                 whatItMeasures = null,
                 plainLanguageExplanation = null,
-                uncertaintyNote = UNCERTAIN_STATUS_NOTE
+                uncertaintyNote = safetyStrings.uncertainStatusNote
               )
             }
             FindingStatus.NOT_MENTIONED -> {
               val hasPrintableValue = !src.originalValue.isNullOrBlank()
               uncertaintyNotes.add(
-                "${src.originalName ?: "Item ${idx + 1}"}: $NOT_MENTIONED_STATUS_NOTE"
+                "${src.originalName ?: safetyStrings.itemLabel(idx + 1)}: ${safetyStrings.notMentionedStatusNote}"
               )
               ExplainedLabItem(
                 sourceItem = src,
-                whatItMeasures = sanitizeExplanationOrNull(aiEntry?.optNonBlankString("whatItMeasures")),
+                whatItMeasures = sanitizeExplanationOrNull(
+                  text = aiEntry?.optNonBlankString("whatItMeasures"),
+                  language = resolvedLanguageEnum
+                ),
                 plainLanguageExplanation = if (hasPrintableValue) {
-                  sanitizeExplanationOrNull(aiEntry?.optNonBlankString("plainLanguageExplanation"))
+                  sanitizeExplanationOrNull(
+                    text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+                    language = resolvedLanguageEnum
+                  )
                 } else {
                   null
                 },
-                uncertaintyNote = NOT_MENTIONED_STATUS_NOTE
+                uncertaintyNote = safetyStrings.notMentionedStatusNote
               )
             }
             else -> {
               ExplainedLabItem(
                 sourceItem = src,
-                whatItMeasures = sanitizeExplanationOrNull(aiEntry?.optNonBlankString("whatItMeasures")),
+                whatItMeasures = sanitizeExplanationOrNull(
+                  text = aiEntry?.optNonBlankString("whatItMeasures"),
+                  language = resolvedLanguageEnum
+                ),
                 plainLanguageExplanation = sanitizeExplanationOrNull(
-                  aiEntry?.optNonBlankString("plainLanguageExplanation")
+                  text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+                  language = resolvedLanguageEnum
                 ),
                 uncertaintyNote = null
               )
@@ -342,32 +215,36 @@ object MedicalExplanationParser {
           when (finding.findingStatus) {
             FindingStatus.UNCERTAIN_OR_UNREADABLE -> {
               uncertaintyNotes.add(
-                "${finding.anatomicalSite ?: "Finding ${idx + 1}"}: $UNCERTAIN_STATUS_NOTE"
+                "${finding.anatomicalSite ?: safetyStrings.findingLabel(idx + 1)}: ${safetyStrings.uncertainStatusNote}"
               )
               ExplainedRadiologyFinding(
                 sourceFinding = finding,
                 plainLanguageExplanation = null,
-                uncertaintyNote = UNCERTAIN_STATUS_NOTE
+                uncertaintyNote = safetyStrings.uncertainStatusNote
               )
             }
             FindingStatus.NOT_MENTIONED -> {
               uncertaintyNotes.add(
-                "${finding.anatomicalSite ?: "Finding ${idx + 1}"}: $NOT_MENTIONED_STATUS_NOTE"
+                "${finding.anatomicalSite ?: safetyStrings.findingLabel(idx + 1)}: ${safetyStrings.notMentionedStatusNote}"
               )
               ExplainedRadiologyFinding(
                 sourceFinding = finding,
                 plainLanguageExplanation = if (!finding.observationText.isNullOrBlank()) {
-                  sanitizeExplanationOrNull(aiEntry?.optNonBlankString("plainLanguageExplanation"))
+                  sanitizeExplanationOrNull(
+                    text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+                    language = resolvedLanguageEnum
+                  )
                 } else {
                   null
                 },
-                uncertaintyNote = NOT_MENTIONED_STATUS_NOTE
+                uncertaintyNote = safetyStrings.notMentionedStatusNote
               )
             }
             else -> ExplainedRadiologyFinding(
               sourceFinding = finding,
               plainLanguageExplanation = sanitizeExplanationOrNull(
-                aiEntry?.optNonBlankString("plainLanguageExplanation")
+                text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+                language = resolvedLanguageEnum
               ),
               uncertaintyNote = null
             )
@@ -378,29 +255,33 @@ object MedicalExplanationParser {
           val aiEntry = impressionMap[idx]
           when (imp.findingStatus) {
             FindingStatus.UNCERTAIN_OR_UNREADABLE -> {
-              uncertaintyNotes.add("Impression ${idx + 1}: $UNCERTAIN_STATUS_NOTE")
+              uncertaintyNotes.add("${safetyStrings.impressionLabel(idx + 1)}: ${safetyStrings.uncertainStatusNote}")
               ExplainedRadiologyImpression(
                 sourceImpression = imp,
                 plainLanguageExplanation = null,
-                uncertaintyNote = UNCERTAIN_STATUS_NOTE
+                uncertaintyNote = safetyStrings.uncertainStatusNote
               )
             }
             FindingStatus.NOT_MENTIONED -> {
-              uncertaintyNotes.add("Impression ${idx + 1}: $NOT_MENTIONED_STATUS_NOTE")
+              uncertaintyNotes.add("${safetyStrings.impressionLabel(idx + 1)}: ${safetyStrings.notMentionedStatusNote}")
               ExplainedRadiologyImpression(
                 sourceImpression = imp,
                 plainLanguageExplanation = if (!imp.impressionText.isNullOrBlank()) {
-                  sanitizeExplanationOrNull(aiEntry?.optNonBlankString("plainLanguageExplanation"))
+                  sanitizeExplanationOrNull(
+                    text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+                    language = resolvedLanguageEnum
+                  )
                 } else {
                   null
                 },
-                uncertaintyNote = NOT_MENTIONED_STATUS_NOTE
+                uncertaintyNote = safetyStrings.notMentionedStatusNote
               )
             }
             else -> ExplainedRadiologyImpression(
               sourceImpression = imp,
               plainLanguageExplanation = sanitizeExplanationOrNull(
-                aiEntry?.optNonBlankString("plainLanguageExplanation")
+                text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+                language = resolvedLanguageEnum
               ),
               uncertaintyNote = null
             )
@@ -420,7 +301,10 @@ object MedicalExplanationParser {
           clinicalIndication = rad.clinicalIndication,
           techniqueDescription = rad.techniqueDescription,
           studyOverviewExplanation = if (hasStudyContext) {
-            sanitizeExplanationOrNull(root.optNonBlankString("studyOverviewExplanation"))
+            sanitizeExplanationOrNull(
+              text = root.optNonBlankString("studyOverviewExplanation"),
+              language = resolvedLanguageEnum
+            )
           } else {
             null
           },
@@ -450,9 +334,9 @@ object MedicalExplanationParser {
 
         val isUncertainReport = cardio.findingStatus == FindingStatus.UNCERTAIN_OR_UNREADABLE
         if (isUncertainReport) {
-          uncertaintyNotes.add("Cardiology report: $UNCERTAIN_STATUS_NOTE")
+          uncertaintyNotes.add("${safetyStrings.cardiologyReportLabel}: ${safetyStrings.uncertainStatusNote}")
         } else if (cardio.findingStatus == FindingStatus.NOT_MENTIONED) {
-          uncertaintyNotes.add("Cardiology report: $NOT_MENTIONED_STATUS_NOTE")
+          uncertaintyNotes.add("${safetyStrings.cardiologyReportLabel}: ${safetyStrings.notMentionedStatusNote}")
         }
 
         val explainedMetrics = CARDIOLOGY_METRIC_SPECS.mapNotNull { spec ->
@@ -460,10 +344,11 @@ object MedicalExplanationParser {
           val aiEntry = if (isUncertainReport) null else fieldMap[spec.key]
           ExplainedCardiologyMetric(
             fieldKey = spec.key,
-            label = spec.label,
+            label = safetyStrings.cardiologyMetricLabel(spec.key, spec.label),
             originalValue = sourceVal,
             plainLanguageExplanation = sanitizeExplanationOrNull(
-              aiEntry?.optNonBlankString("plainLanguageExplanation")
+              text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+              language = resolvedLanguageEnum
             ),
             provenance = cardio.fieldProvenance[spec.key] ?: cardio.provenance
           )
@@ -474,15 +359,15 @@ object MedicalExplanationParser {
           isUncertainReport -> null
           cardio.formalConclusion.isNullOrBlank() -> null
           else -> sanitizeExplanationOrNull(
-            fieldMap["formalConclusion"]?.optNonBlankString("plainLanguageExplanation")
+            text = fieldMap["formalConclusion"]?.optNonBlankString("plainLanguageExplanation"),
+            language = resolvedLanguageEnum
           )
         }
 
         val cardioUncertainty = when {
-          isUncertainReport -> UNCERTAIN_STATUS_NOTE
-          cardio.formalConclusion.isNullOrBlank() ->
-            "Formal cardiology conclusion was not reported in the extracted document."
-          cardio.findingStatus == FindingStatus.NOT_MENTIONED -> NOT_MENTIONED_STATUS_NOTE
+          isUncertainReport -> safetyStrings.uncertainStatusNote
+          cardio.formalConclusion.isNullOrBlank() -> safetyStrings.cardiologyConclusionNotReported
+          cardio.findingStatus == FindingStatus.NOT_MENTIONED -> safetyStrings.notMentionedStatusNote
           else -> null
         }
         if (cardioUncertainty != null) {
@@ -492,7 +377,10 @@ object MedicalExplanationParser {
         CategoryExplanation.Cardiology(
           sourceReport = cardio,
           modalityExplanation = if (!cardio.modality.isNullOrBlank() && !isUncertainReport) {
-            sanitizeExplanationOrNull(root.optNonBlankString("modalityExplanation"))
+            sanitizeExplanationOrNull(
+              text = root.optNonBlankString("modalityExplanation"),
+              language = resolvedLanguageEnum
+            )
           } else {
             null
           },
@@ -521,9 +409,9 @@ object MedicalExplanationParser {
 
         val isUncertainReport = spec.findingStatus == FindingStatus.UNCERTAIN_OR_UNREADABLE
         if (isUncertainReport) {
-          uncertaintyNotes.add("Specialised pathology report: $UNCERTAIN_STATUS_NOTE")
+          uncertaintyNotes.add("${safetyStrings.specialisedReportLabel}: ${safetyStrings.uncertainStatusNote}")
         } else if (spec.findingStatus == FindingStatus.NOT_MENTIONED) {
-          uncertaintyNotes.add("Specialised pathology report: $NOT_MENTIONED_STATUS_NOTE")
+          uncertaintyNotes.add("${safetyStrings.specialisedReportLabel}: ${safetyStrings.notMentionedStatusNote}")
         }
 
         val explainedSections = SPECIALISED_SECTION_SPECS.mapNotNull { sectionSpec ->
@@ -532,10 +420,11 @@ object MedicalExplanationParser {
           val aiEntry = if (isUncertainReport) null else fieldMap[sectionSpec.key]
           ExplainedSpecialisedSection(
             fieldKey = sectionSpec.key,
-            sectionTitle = sectionSpec.label,
+            sectionTitle = safetyStrings.specialisedSectionLabel(sectionSpec.key, sectionSpec.label),
             originalText = sourceText,
             plainLanguageExplanation = sanitizeExplanationOrNull(
-              aiEntry?.optNonBlankString("plainLanguageExplanation")
+              text = aiEntry?.optNonBlankString("plainLanguageExplanation"),
+              language = resolvedLanguageEnum
             ),
             provenance = spec.fieldProvenance[sectionSpec.key] ?: spec.provenance
           )
@@ -546,15 +435,15 @@ object MedicalExplanationParser {
           isUncertainReport -> null
           spec.diagnosticConclusion.isNullOrBlank() -> null
           else -> sanitizeExplanationOrNull(
-            fieldMap["diagnosticConclusion"]?.optNonBlankString("plainLanguageExplanation")
+            text = fieldMap["diagnosticConclusion"]?.optNonBlankString("plainLanguageExplanation"),
+            language = resolvedLanguageEnum
           )
         }
 
         val specUncertainty = when {
-          isUncertainReport -> UNCERTAIN_STATUS_NOTE
-          spec.diagnosticConclusion.isNullOrBlank() ->
-            "Pathologist diagnostic conclusion was not reported in the extracted document."
-          spec.findingStatus == FindingStatus.NOT_MENTIONED -> NOT_MENTIONED_STATUS_NOTE
+          isUncertainReport -> safetyStrings.uncertainStatusNote
+          spec.diagnosticConclusion.isNullOrBlank() -> safetyStrings.specialisedConclusionNotReported
+          spec.findingStatus == FindingStatus.NOT_MENTIONED -> safetyStrings.notMentionedStatusNote
           else -> null
         }
         if (specUncertainty != null) {
@@ -564,7 +453,10 @@ object MedicalExplanationParser {
         CategoryExplanation.Specialised(
           sourceReport = spec,
           reportOverviewExplanation = if (!spec.reportSubtype.isNullOrBlank() && !isUncertainReport) {
-            sanitizeExplanationOrNull(root.optNonBlankString("reportOverviewExplanation"))
+            sanitizeExplanationOrNull(
+              text = root.optNonBlankString("reportOverviewExplanation"),
+              language = resolvedLanguageEnum
+            )
           } else {
             null
           },
@@ -628,16 +520,17 @@ object MedicalExplanationParser {
           }
 
           val perMedUnexpanded = medAbbreviationContexts.getOrNull(idx)?.unexpandedRules
-            ?: unexpandedAbbreviationRulesForMedication(med)
+            ?: unexpandedAbbreviationRulesForMedication(med, resolvedLanguageEnum)
           val safeScheduleExplanation = sanitizeExplanationOrNull(
             text = rawScheduleExplanation,
-            unexpandedRules = perMedUnexpanded
+            unexpandedRules = perMedUnexpanded,
+            language = resolvedLanguageEnum
           )
 
           ExplainedMedication(
             sourceMedication = med,
             printedScheduleExplanation = safeScheduleExplanation,
-            safetyNote = ExplanationConstants.MEDICATION_SAFETY_NOTE
+            safetyNote = safetyStrings.medicationSafetyNote
           )
         }
 
@@ -647,14 +540,16 @@ object MedicalExplanationParser {
           followUpDate = clinical.followUpDate,
           documentOverviewExplanation = sanitizeNarrativeOrNull(
             text = root.optNonBlankString("documentOverviewExplanation"),
-            contexts = medAbbreviationContexts
+            contexts = medAbbreviationContexts,
+            language = resolvedLanguageEnum
           ),
           diagnoses = clinical.primaryDiagnoses.mapIndexed { idx, fact ->
             ExplainedClinicalFact(
               sourceFact = fact,
               plainLanguageExplanation = sanitizeNarrativeOrNull(
                 text = diagnosesMap[idx]?.optNonBlankString("plainLanguageExplanation"),
-                contexts = medAbbreviationContexts
+                contexts = medAbbreviationContexts,
+                language = resolvedLanguageEnum
               )
             )
           },
@@ -663,7 +558,8 @@ object MedicalExplanationParser {
               sourceFact = fact,
               plainLanguageExplanation = sanitizeNarrativeOrNull(
                 text = proceduresMap[idx]?.optNonBlankString("plainLanguageExplanation"),
-                contexts = medAbbreviationContexts
+                contexts = medAbbreviationContexts,
+                language = resolvedLanguageEnum
               )
             )
           },
@@ -673,7 +569,8 @@ object MedicalExplanationParser {
               sourceFact = fact,
               plainLanguageExplanation = sanitizeNarrativeOrNull(
                 text = allergiesMap[idx]?.optNonBlankString("plainLanguageExplanation"),
-                contexts = medAbbreviationContexts
+                contexts = medAbbreviationContexts,
+                language = resolvedLanguageEnum
               )
             )
           },
@@ -682,7 +579,8 @@ object MedicalExplanationParser {
               sourceFact = fact,
               plainLanguageExplanation = sanitizeNarrativeOrNull(
                 text = instructionsMap[idx]?.optNonBlankString("plainLanguageExplanation"),
-                contexts = medAbbreviationContexts
+                contexts = medAbbreviationContexts,
+                language = resolvedLanguageEnum
               )
             )
           }
@@ -696,49 +594,51 @@ object MedicalExplanationParser {
 
     val conciseSummary = sanitizeNarrativeOrNull(
       text = root.optNonBlankString("conciseSummary"),
-      contexts = medAbbreviationContexts
-    ) ?: SAFE_FALLBACK_SUMMARY
+      contexts = medAbbreviationContexts,
+      language = resolvedLanguageEnum
+    ) ?: safetyStrings.safeFallbackSummary
 
     val medicalTerms = root.optObjectList("medicalTerms").mapNotNull { termObj ->
       val term = termObj.optNonBlankString("term") ?: return@mapNotNull null
       val definition = termObj.optNonBlankString("simpleDefinition")
         ?: termObj.optNonBlankString("definition")
         ?: return@mapNotNull null
-      if (containsUnsafeMedicationAdvice(term) || containsUnsafeMedicationAdvice(definition)) {
+      if (LocalizedSafetyResources.containsUnsafeMedicationAdvice(term, resolvedLanguageEnum) ||
+        LocalizedSafetyResources.containsUnsafeMedicationAdvice(definition, resolvedLanguageEnum)
+      ) {
         return@mapNotNull null
       }
       val combinedTermText = "$term $definition"
-      val applicableRules = relevantUnexpandedRulesForNarrative(combinedTermText, medAbbreviationContexts)
-      if (hasUnsafeAbbreviationExpansion(combinedTermText, applicableRules)) {
+      val applicableRules = relevantUnexpandedRulesForNarrative(
+        text = combinedTermText,
+        contexts = medAbbreviationContexts,
+        language = resolvedLanguageEnum
+      )
+      if (hasUnsafeAbbreviationExpansion(combinedTermText, applicableRules, resolvedLanguageEnum)) {
         return@mapNotNull null
       }
       MedicalTermDefinition(term = term, simpleDefinition = definition)
     }
 
     val questionsForDoctor = root.optStringList("questionsForDoctor").filter { question ->
-      sanitizeNarrativeOrNull(question, medAbbreviationContexts) != null
+      sanitizeNarrativeOrNull(question, medAbbreviationContexts, resolvedLanguageEnum) != null
     }
 
     return ReportExplanationResult(
       category = sourceExtraction.category,
-      language = ExplanationConstants.resolveSafeExplanationLanguage(language),
+      language = resolvedLanguageName,
       conciseSummary = conciseSummary,
       categoryExplanation = categoryExplanation,
       medicalTerms = medicalTerms,
       questionsForDoctor = questionsForDoctor,
       uncertaintyNotes = uncertaintyNotes.toList(),
-      safetyDisclaimer = ExplanationConstants.MEDICAL_EXPLANATION_DISCLAIMER
+      safetyDisclaimer = safetyStrings.medicalExplanationDisclaimer
     )
   }
 
   private data class MedicationAbbreviationContext(
     val med: ExtractedMedication,
-    val unexpandedRules: List<AbbreviationRule>
-  )
-
-  private val MEDICATION_REFERENCE_REGEX = Regex(
-    "\\b(meds?|medicine|medicines|medication|medications|drug|drugs|prescription|prescriptions|prescribed|pill|pills|tablet|tablets|capsule|capsules|dose|doses|dosing|dosage|regimen|drop|drops|eye\\s+drops?|inhaler|syrup|ointment)\\b",
-    RegexOption.IGNORE_CASE
+    val unexpandedRules: List<LocalizedSafetyResources.AbbreviationRuleSpec>
   )
 
   private val DRUG_GENERIC_FORM_TOKENS = setOf(
@@ -748,48 +648,64 @@ object MedicalExplanationParser {
   )
 
   private fun textMentionsDrugName(text: String, drugName: String?): Boolean {
-    val cleanDrug = drugName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+    val cleanDrug = drugName?.trim()?.takeIf { it.isNotEmpty() }
+      ?.let { LocalizedSafetyResources.normalizeForMatching(it) }
+      ?: return false
+    val normalizedText = LocalizedSafetyResources.normalizeForMatching(text)
     val escapedFull = Regex.escape(cleanDrug)
-    if (Regex("(?<![A-Za-z0-9])$escapedFull(?![A-Za-z0-9])", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+    if (
+      Regex(
+        "${LocalizedSafetyResources.B_START}$escapedFull${LocalizedSafetyResources.B_END}",
+        RegexOption.IGNORE_CASE
+      ).containsMatchIn(normalizedText)
+    ) {
       return true
     }
-    val tokens = cleanDrug.split(Regex("[^A-Za-z0-9]+"))
+    val tokens = cleanDrug.split(Regex("[^${LocalizedSafetyResources.UNICODE_WORD_CLASS}]+"))
       .map { it.trim() }
       .filter { token ->
         token.length >= 4 &&
           token.any { it.isLetter() } &&
-          token.lowercase(Locale.US) !in DRUG_GENERIC_FORM_TOKENS
+          token.lowercase(Locale.ROOT) !in DRUG_GENERIC_FORM_TOKENS
       }
     return tokens.any { token ->
-      Regex("(?<![A-Za-z0-9])${Regex.escape(token)}(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
-        .containsMatchIn(text)
+      Regex(
+        "${LocalizedSafetyResources.B_START}${Regex.escape(token)}${LocalizedSafetyResources.B_END}",
+        RegexOption.IGNORE_CASE
+      ).containsMatchIn(normalizedText)
     }
   }
 
   private fun relevantUnexpandedRulesForNarrative(
     text: String,
-    contexts: List<MedicationAbbreviationContext>
-  ): List<AbbreviationRule> {
+    contexts: List<MedicationAbbreviationContext>,
+    language: SupportedExplanationLanguage
+  ): List<LocalizedSafetyResources.AbbreviationRuleSpec> {
     if (text.isBlank() || contexts.isEmpty()) return emptyList()
     val contextsWithUnexpanded = contexts.filter { it.unexpandedRules.isNotEmpty() }
     if (contextsWithUnexpanded.isEmpty()) return emptyList()
 
-    val rules = LinkedHashSet<AbbreviationRule>()
+    val normalizedText = LocalizedSafetyResources.normalizeForMatching(text)
+    val rules = LinkedHashSet<LocalizedSafetyResources.AbbreviationRuleSpec>()
 
     // 1. Apply only unexpanded rules belonging to medications explicitly referenced in this narrative
-    val mentionedContexts = contexts.filter { textMentionsDrugName(text, it.med.drugName) }
+    val mentionedContexts = contexts.filter { textMentionsDrugName(normalizedText, it.med.drugName) }
     mentionedContexts.forEach { rules.addAll(it.unexpandedRules) }
 
     // 2. Apply any unexpanded rule whose abbreviation code itself appears in the text
     val allUnexpandedRules = contextsWithUnexpanded.flatMap { it.unexpandedRules }.distinct()
-    allUnexpandedRules.filterTo(rules) { rule -> rule.codeRegex.containsMatchIn(text) }
+    allUnexpandedRules.filterTo(rules) { rule -> rule.codeRegex.containsMatchIn(normalizedText) }
 
     // 3. Apply unexpanded rules when a clause with generic medication/dosing wording also contains an expansion
-    if (mentionedContexts.isEmpty() && MEDICATION_REFERENCE_REGEX.containsMatchIn(text)) {
-      val clauses = text.split(Regex("[.!?;,\\n]|\\band\\b", RegexOption.IGNORE_CASE))
+    if (mentionedContexts.isEmpty() &&
+      LocalizedSafetyResources.containsMedicationReference(normalizedText, language)
+    ) {
+      val clauses = LocalizedSafetyResources.splitClausesForNarrative(normalizedText, language)
       clauses.forEach { clause ->
-        if (MEDICATION_REFERENCE_REGEX.containsMatchIn(clause)) {
-          allUnexpandedRules.filterTo(rules) { rule -> rule.expansionRegex.containsMatchIn(clause) }
+        if (LocalizedSafetyResources.containsMedicationReference(clause, language)) {
+          allUnexpandedRules.filterTo(rules) { rule ->
+            rule.expansionRegexesFor(language).any { expRegex -> expRegex.containsMatchIn(clause) }
+          }
         }
       }
     }
@@ -799,12 +715,13 @@ object MedicalExplanationParser {
 
   private fun sanitizeNarrativeOrNull(
     text: String?,
-    contexts: List<MedicationAbbreviationContext>
+    contexts: List<MedicationAbbreviationContext>,
+    language: SupportedExplanationLanguage
   ): String? {
     val clean = text?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    if (containsUnsafeMedicationAdvice(clean)) return null
-    val applicableRules = relevantUnexpandedRulesForNarrative(clean, contexts)
-    if (hasUnsafeAbbreviationExpansion(clean, applicableRules)) return null
+    if (LocalizedSafetyResources.containsUnsafeMedicationAdvice(clean, language)) return null
+    val applicableRules = relevantUnexpandedRulesForNarrative(clean, contexts, language)
+    if (hasUnsafeAbbreviationExpansion(clean, applicableRules, language)) return null
     return clean
   }
 
@@ -817,37 +734,46 @@ object MedicalExplanationParser {
       med.provenance.sourceSnippet
     ).joinToString(" ")
 
-  private fun unexpandedAbbreviationRulesForMedication(med: ExtractedMedication): List<AbbreviationRule> {
-    val sourceText = medicationSourceText(med)
+  private fun unexpandedAbbreviationRulesForMedication(
+    med: ExtractedMedication,
+    language: SupportedExplanationLanguage
+  ): List<LocalizedSafetyResources.AbbreviationRuleSpec> {
+    val sourceText = LocalizedSafetyResources.normalizeForMatching(medicationSourceText(med))
     if (sourceText.isBlank()) return emptyList()
-    return AMBIGUOUS_ABBREVIATION_RULES.filter { rule ->
-      rule.codeRegex.containsMatchIn(sourceText) && !rule.expansionRegex.containsMatchIn(sourceText)
+    return LocalizedSafetyResources.AMBIGUOUS_ABBREVIATION_RULES.filter { rule ->
+      rule.codeRegex.containsMatchIn(sourceText) &&
+        rule.expansionRegexesFor(language).none { expRegex -> expRegex.containsMatchIn(sourceText) }
     }
   }
 
   private fun hasUnsafeAbbreviationExpansion(
     text: String,
-    unexpandedRules: List<AbbreviationRule>
+    unexpandedRules: List<LocalizedSafetyResources.AbbreviationRuleSpec>,
+    language: SupportedExplanationLanguage
   ): Boolean {
     if (unexpandedRules.isEmpty()) return false
-    return unexpandedRules.any { rule -> rule.expansionRegex.containsMatchIn(text) }
+    val normalizedText = LocalizedSafetyResources.normalizeForMatching(text)
+    return unexpandedRules.any { rule ->
+      rule.expansionRegexesFor(language).any { expRegex -> expRegex.containsMatchIn(normalizedText) }
+    }
   }
 
-  internal fun containsUnsafeMedicationAdvice(text: String): Boolean {
-    if (text.isBlank()) return false
-    val withoutProtectiveWarnings = text
-      .replace(PROTECTIVE_MEDICATION_WARNING_REGEX, " ")
-      .replace(CONSULT_BEFORE_CHANGE_WARNING_REGEX, " ")
-    return UNSAFE_MEDICATION_ADVICE_REGEX.containsMatchIn(withoutProtectiveWarnings)
-  }
+  internal fun containsUnsafeMedicationAdvice(
+    text: String,
+    language: String = ExplanationConstants.DEFAULT_EXPLANATION_LANGUAGE
+  ): Boolean = LocalizedSafetyResources.containsUnsafeMedicationAdvice(
+    text = text,
+    language = LocalizedSafetyResources.resolveLanguage(language)
+  )
 
   private fun sanitizeExplanationOrNull(
     text: String?,
-    unexpandedRules: List<AbbreviationRule> = emptyList()
+    unexpandedRules: List<LocalizedSafetyResources.AbbreviationRuleSpec> = emptyList(),
+    language: SupportedExplanationLanguage = SupportedExplanationLanguage.ENGLISH
   ): String? {
     val clean = text?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    if (containsUnsafeMedicationAdvice(clean)) return null
-    if (hasUnsafeAbbreviationExpansion(clean, unexpandedRules)) return null
+    if (LocalizedSafetyResources.containsUnsafeMedicationAdvice(clean, language)) return null
+    if (hasUnsafeAbbreviationExpansion(clean, unexpandedRules, language)) return null
     return clean
   }
 
@@ -924,8 +850,14 @@ object MedicalExplanationParser {
   }
 
   private fun namesMatch(expected: String, echoed: String): Boolean {
-    val normExpected = expected.lowercase(Locale.US).replace(Regex("\\s+"), " ").trim()
-    val normEchoed = echoed.lowercase(Locale.US).replace(Regex("\\s+"), " ").trim()
+    val normExpected = LocalizedSafetyResources.normalizeForMatching(expected)
+      .lowercase(Locale.ROOT)
+      .replace(Regex("\\s+"), " ")
+      .trim()
+    val normEchoed = LocalizedSafetyResources.normalizeForMatching(echoed)
+      .lowercase(Locale.ROOT)
+      .replace(Regex("\\s+"), " ")
+      .trim()
     return normExpected == normEchoed
   }
 

@@ -169,7 +169,7 @@ class PhoneVerificationViewModel @JvmOverloads constructor(
         }
 
         override fun onVerificationFailed(exception: Exception) {
-          Log.e(TAG, "Phone verification failed: ${exception.message}", exception)
+          Log.e(TAG, "Phone verification failed: ${exception.javaClass.simpleName}")
           val friendlyMessage = mapFirebasePhoneException(exception)
           _uiState.update {
             it.copy(
@@ -240,7 +240,7 @@ class PhoneVerificationViewModel @JvmOverloads constructor(
         }
 
         override fun onVerificationFailed(exception: Exception) {
-          Log.e(TAG, "Resend verification failed: ${exception.message}", exception)
+          Log.e(TAG, "OTP resend verification failed: ${exception.javaClass.simpleName}")
           _uiState.update {
             it.copy(
               isLoading = false,
@@ -336,7 +336,7 @@ class PhoneVerificationViewModel @JvmOverloads constructor(
       val linkResult = authRepository.linkPhoneCredential(credential)
       linkResult.fold(
         onSuccess = { linkedUser ->
-          Log.i(TAG, "Phone successfully linked. Existing UID verified: ${linkedUser.uid}")
+          Log.i(TAG, "Phone credential linking succeeded.")
           // Update Firestore user document with verified phone details
           val firestoreResult = userRepository.updatePhoneVerification(
             uid = linkedUser.uid,
@@ -347,7 +347,7 @@ class PhoneVerificationViewModel @JvmOverloads constructor(
           if (firestoreResult.isSuccess) {
             Log.i(TAG, "Firestore phone verification record updated")
           } else {
-            Log.w(TAG, "Firestore update returned failure: ${firestoreResult.exceptionOrNull()?.message}")
+            Log.w(TAG, "Firestore phone verification update failed: ${firestoreResult.exceptionOrNull()?.javaClass?.simpleName}")
           }
 
           _uiState.update {
@@ -361,7 +361,7 @@ class PhoneVerificationViewModel @JvmOverloads constructor(
           }
         },
         onFailure = { error ->
-          Log.e(TAG, "Account linking error: ${error.message}", error)
+          Log.e(TAG, "OTP verification failed: ${error.javaClass.simpleName}")
           val friendly = when (error) {
             is FirebaseAuthUserCollisionException ->
               "This mobile number is already linked to another NexzyHealth account."

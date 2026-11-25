@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +36,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -46,7 +49,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -60,12 +62,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.auth.PhoneVerificationStep
 import com.example.ui.auth.PhoneVerificationViewModel
 import com.example.ui.components.NexzyTopAppBar
-import com.example.ui.theme.BrandMintBackground
-import com.example.ui.theme.BrandMintSurface
-import com.example.ui.theme.BrandNavyMuted
-import com.example.ui.theme.BrandNavyText
-import com.example.ui.theme.BrandTealPrimary
-import com.example.ui.theme.SurfaceBorder
+import com.example.ui.theme.NexzyTheme
 
 @Composable
 fun OtpVerificationScreen(
@@ -77,8 +74,8 @@ fun OtpVerificationScreen(
   val uiState by viewModel.uiState.collectAsState()
   val context = LocalContext.current
   val activity = context as? Activity
+  val palette = NexzyTheme.colors
 
-  // Automatically trigger navigation when success step is reached
   LaunchedEffect(uiState.step) {
     if (uiState.step is PhoneVerificationStep.Success) {
       val verifiedPhone = (uiState.step as PhoneVerificationStep.Success).formattedPhoneNumber
@@ -89,7 +86,7 @@ fun OtpVerificationScreen(
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(Color.White)
+      .background(MaterialTheme.colorScheme.background)
   ) {
     NexzyTopAppBar(
       title = "Enter Verification Code",
@@ -101,25 +98,25 @@ fun OtpVerificationScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
+        .navigationBarsPadding()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp, vertical = 16.dp),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
       Spacer(modifier = Modifier.height(12.dp))
 
-      // Lock/Key Icon
       Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
           .size(72.dp)
           .clip(CircleShape)
-          .background(BrandMintBackground)
-          .border(2.dp, BrandTealPrimary.copy(alpha = 0.3f), CircleShape)
+          .background(MaterialTheme.colorScheme.primaryContainer)
+          .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
       ) {
         Icon(
           imageVector = Icons.Default.Key,
           contentDescription = null,
-          tint = BrandTealPrimary,
+          tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(36.dp)
         )
       }
@@ -130,7 +127,7 @@ fun OtpVerificationScreen(
         text = "Enter 6-Digit Code",
         fontSize = 22.sp,
         fontWeight = FontWeight.Bold,
-        color = BrandNavyText,
+        color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center
       )
 
@@ -139,7 +136,7 @@ fun OtpVerificationScreen(
       Text(
         text = "We sent a 6-digit verification code to:",
         fontSize = 14.sp,
-        color = BrandNavyMuted,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
       )
 
@@ -153,31 +150,28 @@ fun OtpVerificationScreen(
           text = uiState.formattedPhoneNumber.ifBlank { "+91 ••••• •••••" },
           fontSize = 16.sp,
           fontWeight = FontWeight.Bold,
-          color = BrandNavyText
+          color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.width(6.dp))
         IconButton(
           onClick = onChangeNumberClick,
-          modifier = Modifier
-            .size(28.dp)
-            .testTag("change_phone_number_btn")
+          modifier = Modifier.testTag("change_phone_number_btn")
         ) {
           Icon(
             imageVector = Icons.Default.Edit,
             contentDescription = "Edit Mobile Number",
-            tint = BrandTealPrimary,
-            modifier = Modifier.size(16.dp)
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp)
           )
         }
       }
 
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(16.dp))
 
-      // Automatic SMS Detection Badge
       Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = BrandMintSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth()
       ) {
         Row(
@@ -187,14 +181,14 @@ fun OtpVerificationScreen(
           if (uiState.isAutoVerifying) {
             CircularProgressIndicator(
               modifier = Modifier.size(18.dp),
-              color = BrandTealPrimary,
+              color = MaterialTheme.colorScheme.primary,
               strokeWidth = 2.dp
             )
           } else {
             Icon(
               imageVector = Icons.Default.Sensors,
               contentDescription = null,
-              tint = BrandTealPrimary,
+              tint = MaterialTheme.colorScheme.primary,
               modifier = Modifier.size(18.dp)
             )
           }
@@ -206,7 +200,7 @@ fun OtpVerificationScreen(
               "Automatic SMS verification active. We'll auto-read the code when received."
             },
             fontSize = 12.sp,
-            color = BrandNavyText,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             lineHeight = 16.sp
           )
         }
@@ -214,7 +208,6 @@ fun OtpVerificationScreen(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // 6-Digit OTP Text Input
       OutlinedTextField(
         value = uiState.otpCode,
         onValueChange = { viewModel.onOtpCodeChanged(it) },
@@ -223,7 +216,7 @@ fun OtpVerificationScreen(
             text = "• • • • • •",
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
-            color = BrandNavyMuted.copy(alpha = 0.5f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
             fontSize = 26.sp,
             letterSpacing = 8.sp
           )
@@ -233,7 +226,7 @@ fun OtpVerificationScreen(
           fontSize = 26.sp,
           fontWeight = FontWeight.Bold,
           letterSpacing = 8.sp,
-          color = BrandNavyText,
+          color = MaterialTheme.colorScheme.onSurface,
           fontFamily = FontFamily.Monospace
         ),
         singleLine = true,
@@ -250,11 +243,11 @@ fun OtpVerificationScreen(
         ),
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
-          focusedBorderColor = BrandTealPrimary,
-          unfocusedBorderColor = SurfaceBorder,
-          cursorColor = BrandTealPrimary,
-          focusedContainerColor = Color.White,
-          unfocusedContainerColor = Color.White
+          focusedBorderColor = MaterialTheme.colorScheme.primary,
+          unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+          cursorColor = MaterialTheme.colorScheme.primary,
+          focusedContainerColor = MaterialTheme.colorScheme.surface,
+          unfocusedContainerColor = MaterialTheme.colorScheme.surface
         ),
         modifier = Modifier
           .fillMaxWidth()
@@ -264,12 +257,11 @@ fun OtpVerificationScreen(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Error Banner
       if (uiState.errorMessage != null) {
         Card(
           shape = RoundedCornerShape(12.dp),
-          colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2)),
-          border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECDD3)),
+          colors = CardDefaults.cardColors(containerColor = palette.statusAlertContainer),
+          border = BorderStroke(1.dp, palette.statusAlertBorder),
           modifier = Modifier
             .fillMaxWidth()
             .testTag("otp_error_banner")
@@ -281,14 +273,14 @@ fun OtpVerificationScreen(
             Icon(
               imageVector = Icons.Default.ErrorOutline,
               contentDescription = null,
-              tint = Color(0xFFE11D48),
+              tint = palette.statusAlert,
               modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
               text = uiState.errorMessage ?: "",
               fontSize = 13.sp,
-              color = Color(0xFF9F1239),
+              color = palette.statusAlertText,
               lineHeight = 18.sp
             )
           }
@@ -296,14 +288,15 @@ fun OtpVerificationScreen(
         Spacer(modifier = Modifier.height(14.dp))
       }
 
-      // Verify Button
       Button(
         onClick = { viewModel.verifyManualOtp() },
         enabled = uiState.isValidOtp && !uiState.isLoading,
         shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.buttonColors(
-          containerColor = BrandTealPrimary,
-          disabledContainerColor = BrandTealPrimary.copy(alpha = 0.4f)
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+          disabledContainerColor = palette.disabledContainer,
+          disabledContentColor = palette.disabledContent
         ),
         modifier = Modifier
           .fillMaxWidth()
@@ -313,36 +306,32 @@ fun OtpVerificationScreen(
         if (uiState.isLoading) {
           CircularProgressIndicator(
             modifier = Modifier.size(22.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onPrimary,
             strokeWidth = 2.5.dp
           )
           Spacer(modifier = Modifier.width(10.dp))
           Text(
             text = uiState.statusMessage ?: "Verifying...",
             fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
+            fontWeight = FontWeight.Bold
           )
         } else {
           Icon(
             imageVector = Icons.Default.CheckCircle,
             contentDescription = null,
-            tint = Color.White,
             modifier = Modifier.size(18.dp)
           )
           Spacer(modifier = Modifier.width(8.dp))
           Text(
             text = "Verify & Link Mobile",
             fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
+            fontWeight = FontWeight.Bold
           )
         }
       }
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Resend OTP Row with Cooldown
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -351,14 +340,14 @@ fun OtpVerificationScreen(
         Text(
           text = "Didn't receive the SMS? ",
           fontSize = 13.sp,
-          color = BrandNavyMuted
+          color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (uiState.cooldownSeconds > 0) {
           Text(
             text = "Resend in ${uiState.cooldownSeconds}s",
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = BrandNavyMuted
+            color = MaterialTheme.colorScheme.onSurfaceVariant
           )
         } else {
           TextButton(
@@ -373,7 +362,7 @@ fun OtpVerificationScreen(
             Icon(
               imageVector = Icons.Default.Refresh,
               contentDescription = null,
-              tint = BrandTealPrimary,
+              tint = MaterialTheme.colorScheme.primary,
               modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -381,7 +370,7 @@ fun OtpVerificationScreen(
               text = "Resend Code",
               fontSize = 13.sp,
               fontWeight = FontWeight.Bold,
-              color = BrandTealPrimary
+              color = MaterialTheme.colorScheme.primary
             )
           }
         }
@@ -389,12 +378,14 @@ fun OtpVerificationScreen(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Return to change phone button
       OutlinedButton(
         onClick = onChangeNumberClick,
         shape = RoundedCornerShape(28.dp),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandNavyMuted),
-        border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+        colors = ButtonDefaults.outlinedButtonColors(
+          containerColor = MaterialTheme.colorScheme.surface,
+          contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         modifier = Modifier
           .fillMaxWidth()
           .height(48.dp)
@@ -402,8 +393,7 @@ fun OtpVerificationScreen(
         Text(
           text = "Change Mobile Number",
           fontSize = 14.sp,
-          fontWeight = FontWeight.Medium,
-          color = BrandNavyMuted
+          fontWeight = FontWeight.Medium
         )
       }
 

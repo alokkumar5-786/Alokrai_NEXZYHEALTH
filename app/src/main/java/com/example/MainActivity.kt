@@ -7,12 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import com.example.firebase.FirebaseManager
 import com.example.ui.NexzyApp
-import com.example.ui.theme.BackgroundWhite
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
       MyApplicationTheme {
         Surface(
           modifier = Modifier.fillMaxSize(),
-          color = BackgroundWhite
+          color = MaterialTheme.colorScheme.background
         ) {
           NexzyApp(
             incomingEmailLink = incomingEmailLink.value,
@@ -66,17 +66,17 @@ class MainActivity : ComponentActivity() {
       FirebaseManager.ensureInitialized(applicationContext)
       if (FirebaseManager.auth.isSignInWithEmailLink(link)) {
         if (link != lastProcessedLink) {
-          Log.i(TAG, "Valid incoming email sign-in link detected: $link")
+          Log.i(TAG, "Incoming email sign-in link detected.")
           lastProcessedLink = link
           incomingEmailLink.value = link
         } else {
-          Log.d(TAG, "Link was already processed; skipping duplicate trigger")
+          Log.d(TAG, "Duplicate incoming email sign-in link ignored.")
         }
       } else {
-        Log.d(TAG, "Incoming intent URI is not a Firebase sign-in link: $link")
+        Log.d(TAG, "Email-link validation failed: incoming intent URI is not a Firebase sign-in link.")
       }
     } catch (e: Exception) {
-      Log.e(TAG, "Error checking email link: ${e.message}", e)
+      Log.e(TAG, "Email-link validation failed: ${e.javaClass.simpleName}")
     }
   }
 }

@@ -73,13 +73,13 @@ class FirebaseAuthRepository(
     }
 
     try {
-      Log.i(TAG, "Sending passwordless sign-in link to: $cleanEmail")
+      Log.i(TAG, "Sending passwordless sign-in link started.")
       firebaseAuth.sendSignInLinkToEmail(cleanEmail, actionCodeSettings).awaitTask()
       savePendingEmail(cleanEmail)
-      Log.i(TAG, "Sign-in link successfully sent to $cleanEmail")
+      Log.i(TAG, "Passwordless sign-in link sent.")
       Result.success(Unit)
     } catch (e: Exception) {
-      Log.e(TAG, "Failed to send email link: ${e.message}", e)
+      Log.e(TAG, "Sending passwordless sign-in link failed: ${e.javaClass.simpleName}")
       val userMessage = when (e) {
         is FirebaseAuthInvalidCredentialsException -> "The email address is improperly formatted."
         else -> e.localizedMessage ?: "Failed to send email verification link. Please check your network connection."
@@ -90,7 +90,7 @@ class FirebaseAuthRepository(
 
   override fun isSignInWithEmailLink(link: String): Boolean {
     val isLink = firebaseAuth.isSignInWithEmailLink(link)
-    Log.d(TAG, "Checking link validity: $isLink")
+    Log.d(TAG, "Email-link validation checked: valid=$isLink")
     return isLink
   }
 
@@ -104,18 +104,18 @@ class FirebaseAuthRepository(
     }
 
     try {
-      Log.i(TAG, "Attempting sign-in with email link for $cleanEmail")
+      Log.i(TAG, "Email-link authentication started.")
       val authResult = firebaseAuth.signInWithEmailLink(cleanEmail, link).awaitTask()
       val user = authResult.user
       if (user != null) {
         clearPendingEmail()
-        Log.i(TAG, "Successfully authenticated user: ${user.uid}")
+        Log.i(TAG, "Email-link authentication succeeded.")
         Result.success(user)
       } else {
         Result.failure(IllegalStateException("Authentication succeeded but no user object was returned."))
       }
     } catch (e: Exception) {
-      Log.e(TAG, "Sign in with email link failed: ${e.message}", e)
+      Log.e(TAG, "Email-link authentication failed: ${e.javaClass.simpleName}")
       val userMessage = when (e) {
         is FirebaseAuthActionCodeException -> "This sign-in link has expired or has already been used. Please request a new link."
         is FirebaseAuthInvalidCredentialsException -> "Invalid authentication credentials or mismatched email."
@@ -157,11 +157,11 @@ class FirebaseAuthRepository(
 
   override fun signOut() {
     try {
-      Log.i(TAG, "Signing out user: ${firebaseAuth.currentUser?.uid}")
+      Log.i(TAG, "User sign-out started.")
       firebaseAuth.signOut()
       clearPendingEmail()
     } catch (e: Exception) {
-      Log.e(TAG, "Error during signOut: ${e.message}", e)
+      Log.e(TAG, "User sign-out failed: ${e.javaClass.simpleName}")
     }
   }
 
@@ -171,7 +171,7 @@ class FirebaseAuthRepository(
     resendToken: PhoneAuthProvider.ForceResendingToken?,
     callbacks: PhoneVerificationCallbacks
   ) {
-    Log.i(TAG, "Initiating phone verification for $phoneNumber")
+    Log.i(TAG, "Phone verification started.")
 
     val optionsBuilder = PhoneAuthOptions.newBuilder(firebaseAuth)
       .setPhoneNumber(phoneNumber)
@@ -184,7 +184,7 @@ class FirebaseAuthRepository(
         }
 
         override fun onVerificationFailed(e: FirebaseException) {
-          Log.e(TAG, "Phone verification failed: ${e.message}", e)
+          Log.e(TAG, "Phone verification failed: ${e.javaClass.simpleName}")
           callbacks.onVerificationFailed(e)
         }
 
@@ -194,7 +194,7 @@ class FirebaseAuthRepository(
         }
 
         override fun onCodeAutoRetrievalTimeOut(verificationId: String) {
-          Log.d(TAG, "Auto retrieval timed out for verificationId: $verificationId")
+          Log.d(TAG, "SMS auto-retrieval timed out.")
           callbacks.onCodeAutoRetrievalTimeOut(verificationId)
         }
       })
@@ -211,13 +211,13 @@ class FirebaseAuthRepository(
       ?: return@withContext Result.failure(IllegalStateException("No authenticated email session. Please sign in with email first."))
 
     try {
-      Log.i(TAG, "Linking phone credential to existing user UID: ${currentUser.uid}")
+      Log.i(TAG, "Phone credential linking started.")
       val authResult = currentUser.linkWithCredential(credential).awaitTask()
       val user = authResult.user ?: currentUser
-      Log.i(TAG, "Phone successfully linked. Existing UID preserved: ${user.uid}")
+      Log.i(TAG, "Phone credential linking succeeded.")
       Result.success(user)
     } catch (e: Exception) {
-      Log.e(TAG, "Failed to link phone credential: ${e.message}", e)
+      Log.e(TAG, "Phone credential linking failed: ${e.javaClass.simpleName}")
       val userMessage = when (e) {
         is FirebaseAuthUserCollisionException ->
           "This mobile number is already linked to another NexzyHealth account."

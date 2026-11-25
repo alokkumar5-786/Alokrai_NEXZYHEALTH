@@ -166,16 +166,16 @@ class AndroidDocumentPreviewLoader(private val context: Context) : DocumentPrevi
         height = destHeight
       )
     } catch (e: SecurityException) {
-      Log.w(TAG, "PDF is password-protected or encrypted: ${e.message}")
+      Log.w(TAG, "PDF is password-protected or encrypted: ${e.javaClass.simpleName}")
       DocumentPreviewState.Error("This PDF is password-protected. Please select an unencrypted copy.")
     } catch (e: IOException) {
-      Log.w(TAG, "Corrupted PDF file: ${e.message}")
+      Log.w(TAG, "Corrupted PDF file: ${e.javaClass.simpleName}")
       DocumentPreviewState.Error("Corrupted or unreadable PDF document.")
     } catch (e: OutOfMemoryError) {
-      Log.e(TAG, "Out of memory rendering PDF preview", e)
+      Log.e(TAG, "Out of memory rendering PDF preview")
       DocumentPreviewState.Error("Document is too large to render preview on this device.")
     } catch (e: Exception) {
-      Log.e(TAG, "Unexpected error rendering PDF preview: ${e.message}", e)
+      Log.e(TAG, "Unexpected error rendering PDF preview: ${e.javaClass.simpleName}")
       DocumentPreviewState.Error("Unable to render document preview (${e.localizedMessage ?: "Unknown error"}).")
     } finally {
       try { page?.close() } catch (ignored: Exception) {}
@@ -227,13 +227,13 @@ class AndroidDocumentPreviewLoader(private val context: Context) : DocumentPrevi
         DocumentPreviewState.Error("Unable to decode image preview.")
       }
     } catch (e: SecurityException) {
-      Log.w(TAG, "SecurityException reading image URI: ${e.message}")
+      Log.w(TAG, "SecurityException reading image URI: ${e.javaClass.simpleName}")
       DocumentPreviewState.Error("Permission to access image was revoked.")
     } catch (e: OutOfMemoryError) {
-      Log.e(TAG, "OutOfMemory decoding image preview", e)
+      Log.e(TAG, "OutOfMemory decoding image preview")
       DocumentPreviewState.Error("Image resolution is too high to generate a preview.")
     } catch (e: Exception) {
-      Log.e(TAG, "Error decoding image preview: ${e.message}", e)
+      Log.e(TAG, "Error decoding image preview: ${e.javaClass.simpleName}")
       DocumentPreviewState.Error("Could not render image preview.")
     }
   }
@@ -379,7 +379,7 @@ class ReportUploadViewModel @JvmOverloads constructor(
       val uri = Uri.parse(uriString)
       loadDocumentPreview(uri, document.isPdf)
     } catch (e: Exception) {
-      Log.w(TAG, "Could not parse URI for preview: ${e.message}")
+      Log.w(TAG, "Could not parse URI for preview: ${e.javaClass.simpleName}")
     }
   }
 
@@ -436,7 +436,7 @@ class ReportUploadViewModel @JvmOverloads constructor(
         val uri = Uri.parse(uriString)
         loadDocumentPreview(uri, isPdf = true, pageIndex = targetPage - 1)
       } catch (e: Exception) {
-        Log.w(TAG, "Could not navigate PDF page: ${e.message}")
+        Log.w(TAG, "Could not navigate PDF page: ${e.javaClass.simpleName}")
       }
     }
   }
@@ -777,10 +777,10 @@ class ReportUploadViewModel @JvmOverloads constructor(
       heldPersistableUri = uri
       Log.d(TAG, "Acquired persistable URI read permission")
     } catch (e: SecurityException) {
-      Log.d(TAG, "Persistable permission not supported or not granted by source: ${e.message}")
+      Log.d(TAG, "Persistable permission not supported or not granted by source: ${e.javaClass.simpleName}")
       heldPersistableUri = uri
     } catch (e: Exception) {
-      Log.w(TAG, "Failed to take persistable URI permission: ${e.message}")
+      Log.w(TAG, "Failed to take persistable URI permission: ${e.javaClass.simpleName}")
     }
   }
 
@@ -793,9 +793,9 @@ class ReportUploadViewModel @JvmOverloads constructor(
       )
       Log.d(TAG, "Released persistable URI permission")
     } catch (e: SecurityException) {
-      Log.d(TAG, "SecurityException releasing persistable URI permission: ${e.message}")
+      Log.d(TAG, "SecurityException releasing persistable URI permission: ${e.javaClass.simpleName}")
     } catch (e: Exception) {
-      Log.w(TAG, "Error releasing persistable URI permission: ${e.message}")
+      Log.w(TAG, "Error releasing persistable URI permission: ${e.javaClass.simpleName}")
     } finally {
       heldPersistableUri = null
     }
@@ -829,7 +829,7 @@ class ReportUploadViewModel @JvmOverloads constructor(
         }
       }
     } catch (e: Exception) {
-      Log.w(TAG, "ContentResolver query failed: ${e.message}")
+      Log.w(TAG, "ContentResolver query failed: ${e.javaClass.simpleName}")
     }
 
     if (displayName.isNullOrBlank()) {
@@ -842,7 +842,7 @@ class ReportUploadViewModel @JvmOverloads constructor(
           sizeBytes = stream.available().toLong()
         }
       } catch (e: Exception) {
-        Log.w(TAG, "Could not open stream for size check: ${e.message}")
+        Log.w(TAG, "Could not open stream for size check: ${e.javaClass.simpleName}")
       }
     }
 

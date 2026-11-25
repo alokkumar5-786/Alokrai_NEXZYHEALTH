@@ -64,12 +64,12 @@ class EmailLinkViewModel @JvmOverloads constructor(
    */
   fun processIncomingLink(link: String) {
     if (_uiState.value.isLoading || (_uiState.value.isSuccess && _uiState.value.pendingLink == link)) {
-      Log.d(TAG, "Link is currently being processed or already succeeded: $link")
+      Log.d(TAG, "Email-link sign-in already in progress or completed.")
       return
     }
 
     if (!authRepository.isSignInWithEmailLink(link)) {
-      Log.d(TAG, "Not a valid Firebase email sign-in link: $link")
+      Log.d(TAG, "Email-link validation failed.")
       return
     }
 
@@ -122,7 +122,7 @@ class EmailLinkViewModel @JvmOverloads constructor(
       val result = authRepository.signInWithEmailLink(email, link)
       result.fold(
         onSuccess = { user ->
-          Log.i(TAG, "Successfully authenticated via email link: ${user.uid}")
+          Log.i(TAG, "Email-link authentication succeeded.")
           // Ensure Firestore profile exists or is updated
           val profile = syncUserProfile(user, email)
           _uiState.update {
@@ -136,7 +136,7 @@ class EmailLinkViewModel @JvmOverloads constructor(
           }
         },
         onFailure = { error ->
-          Log.e(TAG, "Sign in with email link failed: ${error.message}", error)
+          Log.e(TAG, "Email-link authentication failed: ${error.javaClass.simpleName}")
           _uiState.update {
             it.copy(
               isLoading = false,
@@ -171,7 +171,8 @@ class EmailLinkViewModel @JvmOverloads constructor(
         createdAt = System.currentTimeMillis(),
         updatedAt = System.currentTimeMillis(),
         accountStatus = "ACTIVE",
-        preferredLanguage = "en"
+        preferredLanguage = "en",
+        preferredLanguageSelected = false
       )
     }
 

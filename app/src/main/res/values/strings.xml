@@ -1,3 +1,52 @@
 <resources>
     <string name="app_name">NexzyHealth</string>
+
+    <!-- Home Screen Report Reader Guide Entry -->
+    <string name="home_report_guide_badge">FIRST-TIME GUIDE</string>
+    <string name="home_report_guide_title">How to Use the Report Reader</string>
+    <string name="home_report_guide_subtitle">4 simple steps: scan, verify, translate &amp; listen</string>
+    <string name="home_report_guide_cd">Open Medical Report Reader guide</string>
+
+    <!-- Medical Report Reader Onboarding Carousel -->
+    <string name="onboarding_back_cd">Go back to Home</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_done">Done</string>
+    <string name="onboarding_step_counter">Step %1$d of %2$d</string>
+    <string name="onboarding_prev">Back</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_tip_label">Helpful tip</string>
+    <string name="onboarding_indicator_cd">Go to step %1$d</string>
+
+    <!-- Slide 1: Scan or Upload -->
+    <string name="onboarding_slide1_tag">STEP 01 • CAPTURE OR IMPORT</string>
+    <string name="onboarding_slide1_title">Scan or Upload Any Lab Report</string>
+    <string name="onboarding_slide1_body">Take a clear photo of a paper lab sheet using Scan My Report, or upload a PDF, JPG, or PNG file up to 15 MB. You can also choose which family member the report belongs to.</string>
+    <string name="onboarding_slide1_tip">Keep all four corners bright and sharp so test numbers and reference ranges stay easy to read.</string>
+    <string name="onboarding_slide1_image_cd">Illustration of scanning and uploading a medical lab report</string>
+
+    <!-- Slide 2: Extract & Safety Checks -->
+    <string name="onboarding_slide2_tag">STEP 02 • REVIEW EXTRACTED DATA</string>
+    <string name="onboarding_slide2_title">Verify Values &amp; Safety Flags</string>
+    <string name="onboarding_slide2_body">NexzyHealth organizes your lab parameters into clear rows showing measured values, units, and reference ranges, while flagging urgent or out-of-range markers for quick attention.</string>
+    <string name="onboarding_slide2_tip">Double-check the extracted numbers against your original lab sheet before generating your explanation.</string>
+    <string name="onboarding_slide2_image_cd">Illustration of structured medical test parameters and status indicators</string>
+
+    <!-- Slide 3: Plain-Language & Audio -->
+    <string name="onboarding_slide3_tag">STEP 03 • UNDERSTAND &amp; LISTEN</string>
+    <string name="onboarding_slide3_title">Plain-Language &amp; Voice Explanations</string>
+    <string name="onboarding_slide3_body">After your explicit consent, read a simple explanation written at an everyday reading level in English, Hindi, Bengali, or Marathi—or play hands-free audio narration.</string>
+    <string name="onboarding_slide3_tip">Switch languages anytime from the top bar on Home or inside your profile settings.</string>
+    <string name="onboarding_slide3_image_cd">Illustration of plain-language medical explanation and audio voice playback</string>
+
+    <!-- Slide 4: Privacy & Ready to Start -->
+    <string name="onboarding_slide4_tag">STEP 04 • SAFE &amp; INFORMED CARE</string>
+    <string name="onboarding_slide4_title">Designed for Privacy &amp; Doctor Visits</string>
+    <string name="onboarding_slide4_body">AI summaries help you understand medical terms and prepare better questions for your doctor. They do not replace professional medical advice or diagnosis.</string>
+    <string name="onboarding_slide4_tip">Want to explore first? Try the interactive Complete Blood Count (CBC) Demo before uploading your own file.</string>
+    <string name="onboarding_slide4_image_cd">Illustration of protective healthcare privacy shield guarding a medical report</string>
+
+    <!-- Final Slide CTAs -->
+    <string name="onboarding_cta_upload">Upload My First Report</string>
+    <string name="onboarding_cta_scan">Scan Report</string>
+    <string name="onboarding_cta_demo">Try CBC Demo</string>
 </resources>
