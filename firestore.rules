@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Default-deny all document operations
     match /{document=**} {
       allow read, write: if false;
@@ -15,35 +15,125 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
     // Authenticated User Profiles (users/{uid})
     match /users/{userId} {
       // 1. Read: Restrict access strictly to authenticated owner
       allow read: if isOwner(userId);
-      
+
       // 2. Creation: Must be authenticated owner, cannot inject server entitlements
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
         && !request.resource.data.keys().hasAny(['subscription', 'credits', 'paymentEntitlements', 'medicalReports'])
         && request.resource.data.accountStatus in ['ACTIVE', 'PENDING_VERIFICATION'];
-      
-      // 3. Update: Must be authenticated owner, prevents modification of protected fields (createdAt, accountStatus, etc.)
+
+      // 3. Update: Must be authenticated owner, prevents modification of protected fields
       allow update: if isOwner(userId)
         && request.resource.data.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'subscription', 
-          'credits', 
-          'paymentEntitlements', 
-          'medicalReports', 
-          'createdAt', 
+          'subscription',
+          'credits',
+          'paymentEntitlements',
+          'medicalReports',
+          'createdAt',
           'accountStatus'
         ]);
-      
-      // 4. Deletion: Prevent client-side deletion
+
+      // 4. Deletion: Prevent client-side profile deletion directly
       allow delete: if false;
+
+      // 5. UID-owned Medical Reports (users/{uid}/reports/{reportId})
+      match /reports/{reportId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && request.resource.data.ownerUid == userId
+          && request.resource.data.reportId == reportId
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.uploadedAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.expiresAt == null
+          && request.resource.data.retentionDecision == 'PENDING_DECISION'
+          && request.resource.data.processingStatus in ['EXTRACTED', 'UNIDENTIFIED', 'EXPLAINED', 'FAILED']
+          && request.resource.data.documentMimeType in ['application/pdf', 'image/jpeg', 'image/png']
+          && request.resource.data.documentByteSize is int
+          && request.resource.data.documentByteSize > 0
+          && request.resource.data.documentByteSize <= 15728640
+          && request.resource.data.storageObjectPath == ('users/' + userId + '/reports/' + reportId + '/original');
+
+        allow update: if isOwner(userId)
+          && request.resource.data.updatedAt == request.time
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'ownerUid',
+            'reportId',
+            'createdAt',
+            'uploadedAt',
+            'storageObjectPath',
+            'documentMimeType',
+            'documentByteSize'
+          ])
+          && (
+            // Allow expiresAt to be written exactly once to uploadedAt + 7 days; never alter or extend afterwards.
+            request.resource.data.expiresAt == resource.data.expiresAt
+            || (
+              resource.data.expiresAt == null
+              && request.resource.data.expiresAt == resource.data.uploadedAt + duration.value(7, 'd')
+            )
+          )
+          && request.resource.data.retentionDecision in ['PENDING_DECISION', 'KEEP_SEVEN_DAYS', 'DELETE_REQUESTED']
+          && request.resource.data.processingStatus in ['EXTRACTED', 'UNIDENTIFIED', 'EXPLAINED', 'FAILED'];
+
+        allow delete: if isOwner(userId);
+
+        // Structured Extraction Subcollection (users/{uid}/reports/{reportId}/extracted/{docId})
+        match /extracted/{docId} {
+          allow read: if isOwner(userId);
+
+          allow create, update: if isOwner(userId)
+            && request.resource.data.ownerUid == userId
+            && request.resource.data.reportId == reportId
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.payloadJson is string
+            && exists(/databases/$(database)/documents/users/$(userId)/reports/$(reportId))
+            && request.resource.data.expiresAt == get(/databases/$(database)/documents/users/$(userId)/reports/$(reportId)).data.expiresAt;
+
+          allow delete: if isOwner(userId);
+        }
+
+        // Plain-Language Explanations Subcollection (users/{uid}/reports/{reportId}/explanations/{languageCode})
+        match /explanations/{languageCode} {
+          allow read: if isOwner(userId);
+
+          allow create, update: if isOwner(userId)
+            && languageCode in ['en', 'hi', 'bn', 'mr']
+            && request.resource.data.ownerUid == userId
+            && request.resource.data.reportId == reportId
+            && request.resource.data.languageCode == languageCode
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.payloadJson is string
+            && exists(/databases/$(database)/documents/users/$(userId)/reports/$(reportId))
+            && request.resource.data.expiresAt == get(/databases/$(database)/documents/users/$(userId)/reports/$(reportId)).data.expiresAt;
+
+          allow delete: if isOwner(userId);
+        }
+
+        // Reserved Q&A Subcollection for future Ask NexzyHealth report threads (inherits parent expiresAt)
+        match /qa/{messageId} {
+          allow read: if isOwner(userId);
+
+          allow create, update: if isOwner(userId)
+            && request.resource.data.ownerUid == userId
+            && request.resource.data.reportId == reportId
+            && request.resource.data.updatedAt == request.time
+            && exists(/databases/$(database)/documents/users/$(userId)/reports/$(reportId))
+            && request.resource.data.expiresAt == get(/databases/$(database)/documents/users/$(userId)/reports/$(reportId)).data.expiresAt;
+
+          allow delete: if isOwner(userId);
+        }
+      }
     }
 
-    // Medical reports: Strictly read-only for report owner, client writes disabled
+    // Legacy top-level collection protection
     match /reports/{reportId} {
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create, update, delete: if false;

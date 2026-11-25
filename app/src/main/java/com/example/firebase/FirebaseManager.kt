@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 
 /**
  * Manages Firebase connection, initialization verification, and core service references.
@@ -39,6 +40,9 @@ object FirebaseManager {
 
   val firestore: FirebaseFirestore
     get() = FirebaseFirestore.getInstance()
+
+  val storage: FirebaseStorage
+    get() = FirebaseStorage.getInstance()
 
   /**
    * Verifies that Firebase is properly initialized and configured for the app.

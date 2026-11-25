@@ -884,6 +884,39 @@ class ReportUploadViewModel @JvmOverloads constructor(
     recycleCurrentPreviewBitmap()
   }
 
+  // Helper to hydrate UI state when reopening a previously saved report from history
+  fun loadPersistedExtractionForViewing(
+    extractionResult: DocumentExtractionResult,
+    category: String
+  ) {
+    activeExtractionJob?.cancel()
+    activeExtractionJob = null
+    val context = getApplication<Application>()
+    releaseHeldUriPermission(context)
+    recycleCurrentPreviewBitmap()
+    val consented = _uiState.value.hasGivenAiConsent || consentStore.hasGrantedAiConsent()
+    _uiState.update {
+      it.copy(
+        selectedDocument = null,
+        selectionStatus = DocumentSelectionStatus.Idle,
+        previewState = DocumentPreviewState.None,
+        isPreviewModalVisible = false,
+        selectedCategory = category.ifBlank { it.selectedCategory },
+        errorMessage = null,
+        isReadyForUpload = false,
+        isConsentDialogVisible = false,
+        hasGivenAiConsent = consented,
+        isExtracting = false,
+        extractionResult = extractionResult,
+        extractionState = if (extractionResult.report is UniversalMedicalReport.Unidentified) {
+          DocumentExtractionState.Unidentified(extractionResult, extractionResult.report.reason)
+        } else {
+          DocumentExtractionState.Success(extractionResult)
+        }
+      )
+    }
+  }
+
   // Helper testing hooks to verify UI state without device hardware
   fun setPreviewStateForTesting(state: DocumentPreviewState) {
     _uiState.update { it.copy(previewState = state) }

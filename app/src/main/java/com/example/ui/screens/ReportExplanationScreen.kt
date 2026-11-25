@@ -65,12 +65,15 @@ import com.example.model.ExplanationConstants
 import com.example.model.FieldProvenance
 import com.example.model.FindingStatus
 import com.example.model.MedicalTermDefinition
+import com.example.model.PersistedMedicalReport
 import com.example.model.ProvenanceAvailability
 import com.example.model.ReportExplanationResult
 import com.example.model.ReportExplanationState
+import com.example.model.ReportPersistenceSyncStatus
 import com.example.model.ReportSafetySummary
 import com.example.model.SafetyBucket
 import com.example.ui.components.NexzyTopAppBar
+import com.example.ui.components.ReportRetentionBanner
 import com.example.ui.components.SafetyCompactNoticeBanner
 import com.example.ui.components.SafetySummaryCard
 import com.example.ui.theme.BrandMintBackground
@@ -101,7 +104,11 @@ fun ReportExplanationScreen(
   onRetryClick: () -> Unit,
   onNavigateBack: () -> Unit,
   modifier: Modifier = Modifier,
-  safetySummary: ReportSafetySummary? = null
+  safetySummary: ReportSafetySummary? = null,
+  persistedReport: PersistedMedicalReport? = null,
+  persistenceSyncStatus: ReportPersistenceSyncStatus = ReportPersistenceSyncStatus.Idle,
+  onKeepReportClick: (() -> Unit)? = null,
+  onDeleteReportClick: (() -> Unit)? = null
 ) {
   val showCompactSafetyBanner = safetySummary == null ||
     safetySummary.hasCriticalOrUrgentFindings ||
@@ -185,7 +192,11 @@ fun ReportExplanationScreen(
           safetySummary = safetySummary,
           fileName = fileName,
           patientName = patientName,
-          onNavigateBack = onNavigateBack
+          onNavigateBack = onNavigateBack,
+          persistedReport = persistedReport,
+          persistenceSyncStatus = persistenceSyncStatus,
+          onKeepReportClick = onKeepReportClick,
+          onDeleteReportClick = onDeleteReportClick
         )
       }
     }
@@ -205,7 +216,11 @@ private fun ExplanationSuccessContent(
   safetySummary: ReportSafetySummary?,
   fileName: String?,
   patientName: String?,
-  onNavigateBack: () -> Unit
+  onNavigateBack: () -> Unit,
+  persistedReport: PersistedMedicalReport? = null,
+  persistenceSyncStatus: ReportPersistenceSyncStatus = ReportPersistenceSyncStatus.Idle,
+  onKeepReportClick: (() -> Unit)? = null,
+  onDeleteReportClick: (() -> Unit)? = null
 ) {
   LazyColumn(
     modifier = Modifier
@@ -217,6 +232,17 @@ private fun ExplanationSuccessContent(
     item {
       Spacer(modifier = Modifier.height(6.dp))
       SafetyDisclaimerBanner(disclaimer = explanation.safetyDisclaimer)
+    }
+
+    if (onKeepReportClick != null && onDeleteReportClick != null) {
+      item {
+        ReportRetentionBanner(
+          report = persistedReport,
+          syncStatus = persistenceSyncStatus,
+          onKeepReportClick = onKeepReportClick,
+          onDeleteReportClick = onDeleteReportClick
+        )
+      }
     }
 
     item {

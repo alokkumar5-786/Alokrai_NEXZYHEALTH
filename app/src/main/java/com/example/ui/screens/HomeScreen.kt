@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.LockOpen
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.model.ReportHistoryItem
 import com.example.ui.components.NexzyTopAppBar
+import com.example.ui.components.PendingOfflineDeletionBanner
 import com.example.ui.components.StatusBadge
 import com.example.ui.theme.MistBlue
 import com.example.ui.theme.NexzyTheme
@@ -73,7 +76,10 @@ fun HomeScreen(
   onSubscriptionClick: () -> Unit,
   modifier: Modifier = Modifier,
   onExplainHealthPolicyClick: () -> Unit = {},
-  onReportReaderGuideClick: () -> Unit = {}
+  onReportReaderGuideClick: () -> Unit = {},
+  pendingDeletionCount: Int = 0,
+  onRetryPendingDeletionsClick: (() -> Unit)? = null,
+  onDeleteReportClick: ((ReportHistoryItem) -> Unit)? = null
 ) {
   val palette = NexzyTheme.colors
 
@@ -436,11 +442,58 @@ fun HomeScreen(
         }
       }
 
-      items(recentReports) { report ->
-        RecentReportItemCard(
-          report = report,
-          onClick = { onReportItemClick(report) }
-        )
+      if (pendingDeletionCount > 0) {
+        item {
+          PendingOfflineDeletionBanner(
+            pendingCount = pendingDeletionCount,
+            onRetryClick = onRetryPendingDeletionsClick
+          )
+        }
+      }
+
+      if (recentReports.isEmpty()) {
+        item {
+          Card(
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, palette.dividerBorder),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("home_empty_reports_card")
+          ) {
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+            ) {
+              Text(
+                text = stringResource(R.string.report_history_empty_title),
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Spacer(modifier = Modifier.height(4.dp))
+              Text(
+                text = stringResource(R.string.report_history_empty_subtitle),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+          }
+        }
+      } else {
+        items(recentReports, key = { it.id }) { report ->
+          RecentReportItemCard(
+            report = report,
+            onClick = { onReportItemClick(report) },
+            onDeleteClick = if (report.canDelete && onDeleteReportClick != null) {
+              { onDeleteReportClick(report) }
+            } else {
+              null
+            }
+          )
+        }
       }
     }
   }
@@ -581,7 +634,8 @@ private fun ActionBigButton(
 @Composable
 fun RecentReportItemCard(
   report: ReportHistoryItem,
-  onClick: () -> Unit
+  onClick: () -> Unit,
+  onDeleteClick: (() -> Unit)? = null
 ) {
   val palette = NexzyTheme.colors
 
@@ -641,6 +695,19 @@ fun RecentReportItemCard(
                 color = palette.statusInfoText
               )
             }
+          } else if (!report.retentionStatusLabel.isNullOrBlank()) {
+            Box(
+              modifier = Modifier
+                .background(palette.statusInfoContainer, RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+              Text(
+                text = report.retentionStatusLabel,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.statusInfoText
+              )
+            }
           }
         }
         Spacer(modifier = Modifier.height(3.dp))
@@ -652,12 +719,27 @@ fun RecentReportItemCard(
         Spacer(modifier = Modifier.height(6.dp))
         StatusBadge(status = report.status, customLabel = report.mainHighlight)
       }
-      Spacer(modifier = Modifier.width(6.dp))
-      Icon(
-        imageVector = Icons.Default.ChevronRight,
-        contentDescription = "Details",
-        tint = MaterialTheme.colorScheme.onSurfaceVariant
-      )
+      if (onDeleteClick != null) {
+        IconButton(
+          onClick = onDeleteClick,
+          modifier = Modifier
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .testTag("btn_delete_report_${report.id}")
+        ) {
+          Icon(
+            imageVector = Icons.Default.DeleteOutline,
+            contentDescription = "Delete report",
+            tint = Color(0xFFDC2626)
+          )
+        }
+      } else {
+        Spacer(modifier = Modifier.width(6.dp))
+        Icon(
+          imageVector = Icons.Default.ChevronRight,
+          contentDescription = "Details",
+          tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
     }
   }
 }

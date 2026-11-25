@@ -37,12 +37,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.model.ReportHistoryItem
 import com.example.ui.components.NexzyTopAppBar
+import com.example.ui.components.PendingOfflineDeletionBanner
 import com.example.ui.theme.BrandMintBackground
 import com.example.ui.theme.BrandNavyMuted
 import com.example.ui.theme.BrandNavyText
@@ -54,7 +57,10 @@ fun ReportHistoryScreen(
   reports: List<ReportHistoryItem>,
   onReportClick: (ReportHistoryItem) -> Unit,
   onNavigateBack: () -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  pendingDeletionCount: Int = 0,
+  onRetryPendingDeletionsClick: (() -> Unit)? = null,
+  onDeleteReportClick: ((ReportHistoryItem) -> Unit)? = null
 ) {
   var searchQuery by remember { mutableStateOf("") }
   var selectedPersonFilter by remember { mutableStateOf("All") }
@@ -137,6 +143,14 @@ fun ReportHistoryScreen(
 
       Spacer(modifier = Modifier.height(12.dp))
 
+      if (pendingDeletionCount > 0) {
+        PendingOfflineDeletionBanner(
+          pendingCount = pendingDeletionCount,
+          onRetryClick = onRetryPendingDeletionsClick
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+      }
+
       if (filteredReports.isEmpty()) {
         Box(
           contentAlignment = Alignment.Center,
@@ -144,6 +158,7 @@ fun ReportHistoryScreen(
             .fillMaxWidth()
             .weight(1f)
             .padding(24.dp)
+            .testTag("history_empty_state")
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
@@ -154,14 +169,22 @@ fun ReportHistoryScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-              text = "No matching reports found",
+              text = if (reports.isEmpty()) {
+                stringResource(R.string.report_history_empty_title)
+              } else {
+                "No matching reports found"
+              },
               fontWeight = FontWeight.Bold,
               fontSize = 16.sp,
               color = BrandNavyText
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-              text = "Try adjusting your search keywords or filter",
+              text = if (reports.isEmpty()) {
+                stringResource(R.string.report_history_empty_subtitle)
+              } else {
+                "Try adjusting your search keywords or filter"
+              },
               fontSize = 13.sp,
               color = BrandNavyMuted,
               textAlign = TextAlign.Center
@@ -173,10 +196,15 @@ fun ReportHistoryScreen(
           modifier = Modifier.fillMaxSize(),
           verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          items(filteredReports) { report ->
+          items(filteredReports, key = { it.id }) { report ->
             RecentReportItemCard(
               report = report,
-              onClick = { onReportClick(report) }
+              onClick = { onReportClick(report) },
+              onDeleteClick = if (report.canDelete && onDeleteReportClick != null) {
+                { onDeleteReportClick(report) }
+              } else {
+                null
+              }
             )
           }
           item {

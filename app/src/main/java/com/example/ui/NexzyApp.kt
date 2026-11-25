@@ -69,8 +69,12 @@ import com.example.ui.screens.SubscriptionScreen
 import com.example.ui.screens.UploadProgressScreen
 import android.content.Intent
 import android.widget.Toast
+import com.example.model.DocumentExtractionState
 import com.example.model.HealthPolicyCopy
+import com.example.model.ReportExplanationState
+import com.example.ui.components.ReportExitRetentionDialog
 import com.example.ui.policy.HealthPolicyViewModel
+import com.example.ui.reports.ReportLifecycleViewModel
 import com.example.ui.screens.HealthPolicyFlowScreen
 import com.example.ui.screens.ReportReaderOnboardingScreen
 import com.example.ui.screens.UploadScreen
@@ -112,8 +116,14 @@ fun NexzyApp(
   val healthPolicyViewModel: HealthPolicyViewModel = viewModel(
     factory = HealthPolicyViewModel.provideFactory(application)
   )
+  val reportLifecycleViewModel: ReportLifecycleViewModel = viewModel(
+    factory = ReportLifecycleViewModel.provideFactory(application)
+  )
 
   val uploadStateSnapshot by reportUploadViewModel.uiState.collectAsState()
+  val explanationStateSnapshot by reportExplanationViewModel.uiState.collectAsState()
+  val lifecycleState by reportLifecycleViewModel.uiState.collectAsState()
+
   val currentSafetySummary = remember(uploadStateSnapshot.extractionResult) {
     uploadStateSnapshot.extractionResult?.let { SafetyFindingEvaluator.evaluate(it) }
   }
@@ -127,6 +137,39 @@ fun NexzyApp(
 
   LaunchedEffect(currentUserUid) {
     reportExplanationViewModel.syncUserSession(currentUserUid)
+    reportLifecycleViewModel.syncUserSession(currentUserUid)
+  }
+
+  LaunchedEffect(uploadStateSnapshot.extractionResult, uploadStateSnapshot.selectedDocument) {
+    val extraction = uploadStateSnapshot.extractionResult
+    val activeDoc = uploadStateSnapshot.selectedDocument
+    if (extraction != null && activeDoc != null && !currentUserUid.isNullOrBlank()) {
+      reportLifecycleViewModel.onExtractionCompleted(
+        uid = currentUserUid,
+        selectedDocument = activeDoc,
+        patientLabel = uploadStateSnapshot.selectedFamilyMember?.name ?: "Self",
+        selectedCategory = uploadStateSnapshot.selectedCategory,
+        extractionResult = extraction
+      )
+    }
+  }
+
+  LaunchedEffect(explanationStateSnapshot) {
+    val successExplanation = (explanationStateSnapshot as? ReportExplanationState.Success)?.explanation
+    if (successExplanation != null && !currentUserUid.isNullOrBlank()) {
+      reportLifecycleViewModel.onExplanationCompleted(
+        uid = currentUserUid,
+        explanationResult = successExplanation
+      )
+    }
+  }
+
+  LaunchedEffect(lifecycleState.statusBannerMessage) {
+    val bannerMsg = lifecycleState.statusBannerMessage
+    if (!bannerMsg.isNullOrBlank()) {
+      Toast.makeText(context, bannerMsg, Toast.LENGTH_SHORT).show()
+      reportLifecycleViewModel.dismissStatusBanner()
+    }
   }
 
   // Guard: when authState transitions to Unauthenticated, automatically evict from authenticated screens
@@ -158,6 +201,7 @@ fun NexzyApp(
         emailLinkViewModel.reset()
         phoneVerificationViewModel.resetAll()
         reportExplanationViewModel.clearSessionAndRevokeConsent(currentUserUid)
+        reportLifecycleViewModel.syncUserSession(null)
         reportUploadViewModel.removeSelectedDocument()
         healthPolicyViewModel.deleteDocumentAndReset()
         navController.navigate(Screen.Welcome.route) {
@@ -188,9 +232,13 @@ fun NexzyApp(
   val currentLanguageName = explanationLanguage
   val languageUpdateState by authViewModel.languageUpdateState.collectAsState()
   var freeCredits by remember { mutableIntStateOf(3) }
-  var reportsAnalysed by remember { mutableIntStateOf(14) }
+  val persistedHistoryItems = remember(lifecycleState.reports) {
+    lifecycleState.reports.map { it.toHistoryItem() }
+  }
+  val reportsAnalysedCount = persistedHistoryItems.size
   val familyMembersList = remember { mutableStateListOf(*MockDataProvider.sampleFamilyMembers.toTypedArray()) }
-  var activeUploadFileName by remember { mutableStateOf("CBC_Report_ApexLab.pdf") }
+  var activeUploadFileName by remember { mutableStateOf("Medical_Report") }
+  var pendingExitAction by remember { mutableStateOf("back") }
 
   val bottomBarScreens = listOf(
     Screen.Home.route,
@@ -408,9 +456,9 @@ fun NexzyApp(
           HomeScreen(
             userName = authViewModel.currentUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Priya",
             selectedLanguageName = currentLanguageName,
-            reportsAnalysedCount = reportsAnalysed,
+            reportsAnalysedCount = reportsAnalysedCount,
             freeCreditsRemaining = freeCredits,
-            recentReports = MockDataProvider.sampleHistory,
+            recentReports = persistedHistoryItems.take(3),
             onScanReportClick = { navController.navigate(Screen.ScanReport.route) },
             onUploadReportClick = { navController.navigate(Screen.UploadReport.route) },
             onSampleExplanationClick = { navController.navigate(Screen.SampleExplanation.route) },
@@ -418,7 +466,33 @@ fun NexzyApp(
             onHelpClick = { navController.navigate(Screen.HelpSupport.route) },
             onViewAllReportsClick = { navController.navigate(Screen.ReportHistory.route) },
             onReportItemClick = { report ->
-              navController.navigate(Screen.SampleExplanation.route)
+              if (report.isDemo) {
+                navController.navigate(Screen.SampleExplanation.route)
+              } else {
+                reportLifecycleViewModel.openPersistedReport(
+                  reportId = report.id,
+                  preferredLanguageCode = activeLanguageCode,
+                  onLoaded = { detail ->
+                    val extraction = detail.extractionResult ?: return@openPersistedReport
+                    val matchedExp = detail.explanationsByLanguage[activeLanguageCode]
+                      ?: detail.explanationsByLanguage.values.firstOrNull()
+                    reportUploadViewModel.loadPersistedExtractionForViewing(
+                      extractionResult = extraction,
+                      category = detail.report.selectedCategory
+                    )
+                    reportExplanationViewModel.loadPersistedExplanationForViewing(
+                      extractionResult = extraction,
+                      explanation = matchedExp
+                    )
+                    navController.navigate(Screen.ExtractionResult.route) {
+                      launchSingleTop = true
+                    }
+                  },
+                  onUnavailable = { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                  }
+                )
+              }
             },
             onSubscriptionClick = { navController.navigate(Screen.Subscription.route) },
             onExplainHealthPolicyClick = {
@@ -431,7 +505,10 @@ fun NexzyApp(
               navController.navigate(Screen.ReportReaderOnboarding.route) {
                 launchSingleTop = true
               }
-            }
+            },
+            pendingDeletionCount = lifecycleState.pendingDeletions.size,
+            onRetryPendingDeletionsClick = { reportLifecycleViewModel.retryPendingDeletions() },
+            onDeleteReportClick = { report -> reportLifecycleViewModel.deleteReportById(report.id) }
           )
         }
 
@@ -540,7 +617,6 @@ fun NexzyApp(
             fileName = uploadState.selectedDocument?.fileName ?: activeUploadFileName,
             extractionState = uploadState.extractionState,
             onExtractionSucceeded = {
-              reportsAnalysed += 1
               navController.navigate(Screen.ExtractionResult.route) {
                 popUpTo(Screen.UploadProgress.route) { inclusive = true }
                 launchSingleTop = true
@@ -563,29 +639,88 @@ fun NexzyApp(
         // 10b. Real Extracted Medical Data Result Screen
         composable(Screen.ExtractionResult.route) {
           val uploadState by reportUploadViewModel.uiState.collectAsState()
-          ExtractionResultScreen(
-            extractionResult = uploadState.extractionResult,
-            fileName = uploadState.selectedDocument?.fileName,
-            patientName = uploadState.selectedFamilyMember?.name,
-            onUploadAnotherClick = {
-              reportExplanationViewModel.clear()
-              reportUploadViewModel.removeSelectedDocument()
+          val performLeaveAction: (String) -> Unit = { action ->
+            reportExplanationViewModel.clear()
+            reportUploadViewModel.removeSelectedDocument()
+            reportLifecycleViewModel.clearActiveSessionState()
+            if (action == "upload_another") {
               navController.navigate(Screen.UploadReport.route) {
                 popUpTo(Screen.Home.route)
               }
+            } else {
+              navController.popBackStack()
+            }
+          }
+
+          BackHandler {
+            pendingExitAction = "back"
+            reportLifecycleViewModel.requestExitReportSession {
+              performLeaveAction("back")
+            }
+          }
+
+          ExtractionResultScreen(
+            extractionResult = uploadState.extractionResult,
+            fileName = lifecycleState.activeSession.report?.title ?: uploadState.selectedDocument?.fileName,
+            patientName = lifecycleState.activeSession.report?.patientLabel ?: uploadState.selectedFamilyMember?.name,
+            onUploadAnotherClick = {
+              pendingExitAction = "upload_another"
+              reportLifecycleViewModel.requestExitReportSession {
+                performLeaveAction("upload_another")
+              }
             },
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = {
+              pendingExitAction = "back"
+              reportLifecycleViewModel.requestExitReportSession {
+                performLeaveAction("back")
+              }
+            },
             onExplainReportClick = {
-              reportExplanationViewModel.requestExplanation(
-                extractionResult = uploadState.extractionResult,
-                language = explanationLanguage
-              )
+              val loadedExplanation = lifecycleState.activeSession.explanationResult
+              if (loadedExplanation != null) {
+                reportExplanationViewModel.loadPersistedExplanationForViewing(
+                  extractionResult = uploadState.extractionResult,
+                  explanation = loadedExplanation
+                )
+              } else {
+                reportExplanationViewModel.requestExplanation(
+                  extractionResult = uploadState.extractionResult,
+                  language = explanationLanguage
+                )
+              }
               navController.navigate(Screen.ReportExplanation.route) {
                 launchSingleTop = true
               }
             },
-            safetySummary = currentSafetySummary
+            safetySummary = currentSafetySummary,
+            persistedReport = lifecycleState.activeSession.report,
+            persistenceSyncStatus = lifecycleState.activeSession.syncStatus,
+            onKeepReportClick = { reportLifecycleViewModel.keepActiveReport() },
+            onDeleteReportClick = {
+              reportLifecycleViewModel.deleteActiveReport(
+                localUriToRelease = uploadState.selectedDocument?.uriString
+              ) {
+                performLeaveAction("back")
+              }
+            }
           )
+
+          if (lifecycleState.isExitRetentionPromptVisible) {
+            ReportExitRetentionDialog(
+              expiresAtMillis = lifecycleState.activeSession.report?.expiresAtMillis,
+              onKeepAndExit = {
+                reportLifecycleViewModel.keepActiveReport()
+                performLeaveAction(pendingExitAction)
+              },
+              onDeleteAndLeave = {
+                reportLifecycleViewModel.dismissExitPromptAndDeleteByDefault(
+                  localUriToRelease = uploadState.selectedDocument?.uriString
+                ) {
+                  performLeaveAction(pendingExitAction)
+                }
+              }
+            )
+          }
         }
 
         // 10c. Category-Specific Plain-Language Explanation Screen (Task 3D)
@@ -596,8 +731,8 @@ fun NexzyApp(
           ReportExplanationScreen(
             explanationState = explanationState,
             isConsentDialogVisible = isConsentDialogVisible,
-            fileName = uploadState.selectedDocument?.fileName,
-            patientName = uploadState.selectedFamilyMember?.name,
+            fileName = lifecycleState.activeSession.report?.title ?: uploadState.selectedDocument?.fileName,
+            patientName = lifecycleState.activeSession.report?.patientLabel ?: uploadState.selectedFamilyMember?.name,
             onConfirmConsent = {
               reportExplanationViewModel.confirmConsentAndExplain(
                 extractionResult = uploadState.extractionResult,
@@ -620,7 +755,20 @@ fun NexzyApp(
               )
             },
             onNavigateBack = { navController.popBackStack() },
-            safetySummary = currentSafetySummary
+            safetySummary = currentSafetySummary,
+            persistedReport = lifecycleState.activeSession.report,
+            persistenceSyncStatus = lifecycleState.activeSession.syncStatus,
+            onKeepReportClick = { reportLifecycleViewModel.keepActiveReport() },
+            onDeleteReportClick = {
+              reportLifecycleViewModel.deleteActiveReport(
+                localUriToRelease = uploadState.selectedDocument?.uriString
+              ) {
+                reportExplanationViewModel.clear()
+                reportUploadViewModel.removeSelectedDocument()
+                reportLifecycleViewModel.clearActiveSessionState()
+                navController.popBackStack(Screen.Home.route, inclusive = false)
+              }
+            }
           )
         }
 
@@ -653,9 +801,40 @@ fun NexzyApp(
         // 14. Report History
         composable(Screen.ReportHistory.route) {
           ReportHistoryScreen(
-            reports = MockDataProvider.sampleHistory,
-            onReportClick = { report -> navController.navigate(Screen.SampleExplanation.route) },
-            onNavigateBack = { navController.popBackStack() }
+            reports = persistedHistoryItems,
+            onReportClick = { report ->
+              if (report.isDemo) {
+                navController.navigate(Screen.SampleExplanation.route)
+              } else {
+                reportLifecycleViewModel.openPersistedReport(
+                  reportId = report.id,
+                  preferredLanguageCode = activeLanguageCode,
+                  onLoaded = { detail ->
+                    val extraction = detail.extractionResult ?: return@openPersistedReport
+                    val matchedExp = detail.explanationsByLanguage[activeLanguageCode]
+                      ?: detail.explanationsByLanguage.values.firstOrNull()
+                    reportUploadViewModel.loadPersistedExtractionForViewing(
+                      extractionResult = extraction,
+                      category = detail.report.selectedCategory
+                    )
+                    reportExplanationViewModel.loadPersistedExplanationForViewing(
+                      extractionResult = extraction,
+                      explanation = matchedExp
+                    )
+                    navController.navigate(Screen.ExtractionResult.route) {
+                      launchSingleTop = true
+                    }
+                  },
+                  onUnavailable = { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                  }
+                )
+              }
+            },
+            onNavigateBack = { navController.popBackStack() },
+            pendingDeletionCount = lifecycleState.pendingDeletions.size,
+            onRetryPendingDeletionsClick = { reportLifecycleViewModel.retryPendingDeletions() },
+            onDeleteReportClick = { report -> reportLifecycleViewModel.deleteReportById(report.id) }
           )
         }
 
@@ -676,7 +855,7 @@ fun NexzyApp(
             userPhone = profile?.phoneNumber ?: "",
             isPhoneVerified = profile?.phoneVerified ?: false,
             selectedLanguage = currentLanguageName,
-            reportsAnalysed = reportsAnalysed,
+            reportsAnalysed = reportsAnalysedCount,
             freeCredits = freeCredits,
             onNavigateToFamilyProfiles = { navController.navigate(Screen.FamilyProfiles.route) },
             onNavigateToSubscription = { navController.navigate(Screen.Subscription.route) },
@@ -687,6 +866,7 @@ fun NexzyApp(
             onNavigateToPhoneVerification = { navController.navigate(Screen.PhoneEntry.route) },
             onLogoutClick = {
               reportExplanationViewModel.clearSessionAndRevokeConsent(currentUserUid)
+              reportLifecycleViewModel.syncUserSession(null)
               authViewModel.signOut()
               emailLoginViewModel.reset()
               emailLinkViewModel.reset()
@@ -724,6 +904,7 @@ fun NexzyApp(
             onNavigateBack = { navController.popBackStack() },
             onAccountDeleted = {
               reportExplanationViewModel.clearSessionAndRevokeConsent(currentUserUid)
+              reportLifecycleViewModel.syncUserSession(null)
               authViewModel.signOut()
               emailLoginViewModel.reset()
               emailLinkViewModel.reset()

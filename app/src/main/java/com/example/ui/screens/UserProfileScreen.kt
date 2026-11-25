@@ -233,7 +233,7 @@ fun UserProfileScreen(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
       ) {
-        ProfileStatBox("14", "Reports Analysed", modifier = Modifier.weight(1f))
+        ProfileStatBox("$reportsAnalysed", "Reports Analysed", modifier = Modifier.weight(1f))
         ProfileStatBox("3", "Family Members", modifier = Modifier.weight(1f))
         ProfileStatBox("$freeCredits", "Free Credits", modifier = Modifier.weight(1f))
       }

@@ -19,6 +19,55 @@
         "read": "request.auth != null && request.auth.uid == userId",
         "write": "request.auth != null && request.auth.uid == userId && !request.resource.data.keys().hasAny(['subscription', 'credits', 'paymentEntitlements'])"
       }
+    },
+    "MedicalReport": {
+      "collection": "reports",
+      "path": "/users/{userId}/reports/{reportId}",
+      "description": "Authenticated, UID-owned medical report metadata and 7-day retention lifecycle state.",
+      "fields": {
+        "reportId": { "type": "string", "description": "Firestore document ID" },
+        "ownerUid": { "type": "string", "description": "Owning Firebase Auth UID" },
+        "title": { "type": "string", "description": "Display title derived from report type" },
+        "selectedCategory": { "type": "string", "description": "User-selected report category label" },
+        "extractedCategory": { "type": "string", "description": "AI-classified MedicalDocumentCategory enum name" },
+        "patientLabel": { "type": "string", "description": "Associated patient profile display label" },
+        "facilityOrProvider": { "type": "string", "description": "Extracted facility or clinician label" },
+        "documentMimeType": { "type": "string", "enum": ["application/pdf", "image/jpeg", "image/png"] },
+        "documentByteSize": { "type": "number", "description": "Size of original uploaded document in bytes" },
+        "pageCount": { "type": "number", "description": "Number of document pages" },
+        "storageObjectPath": { "type": "string", "description": "Private Firebase Storage object path under users/{uid}/reports/{reportId}/original" },
+        "processingStatus": { "type": "string", "enum": ["EXTRACTED", "UNIDENTIFIED", "EXPLAINED", "FAILED"] },
+        "retentionDecision": { "type": "string", "enum": ["PENDING_DECISION", "KEEP_SEVEN_DAYS", "DELETE_REQUESTED"] },
+        "createdAt": { "type": "timestamp", "description": "Server creation timestamp" },
+        "uploadedAt": { "type": "timestamp", "description": "Server upload timestamp anchoring 7-day expiry" },
+        "updatedAt": { "type": "timestamp", "description": "Server last-updated timestamp" },
+        "expiresAt": { "type": "timestamp", "optional": true, "description": "Immutable expiry timestamp equal to uploadedAt + 7 days" }
+      }
+    },
+    "ExtractedReportPayload": {
+      "collection": "extracted",
+      "path": "/users/{userId}/reports/{reportId}/extracted/{docId}",
+      "description": "Structured DocumentExtractionResult JSON payload inheriting parent expiresAt.",
+      "fields": {
+        "ownerUid": { "type": "string" },
+        "reportId": { "type": "string" },
+        "payloadJson": { "type": "string" },
+        "expiresAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    "ReportExplanationPayload": {
+      "collection": "explanations",
+      "path": "/users/{userId}/reports/{reportId}/explanations/{languageCode}",
+      "description": "Saved plain-language ReportExplanationResult payload per language inheriting parent expiresAt.",
+      "fields": {
+        "ownerUid": { "type": "string" },
+        "reportId": { "type": "string" },
+        "languageCode": { "type": "string", "enum": ["en", "hi", "bn", "mr"] },
+        "payloadJson": { "type": "string" },
+        "expiresAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
     }
   }
 }

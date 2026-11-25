@@ -336,6 +336,22 @@ class ReportExplanationViewModel @JvmOverloads constructor(
     clear()
   }
 
+  fun loadPersistedExplanationForViewing(
+    extractionResult: DocumentExtractionResult?,
+    explanation: com.example.model.ReportExplanationResult?
+  ) {
+    activeJob?.cancel()
+    activeJob = null
+    boundExtractionResult = extractionResult
+    boundLanguage = explanation?.language
+    _isConsentDialogVisible.value = false
+    _uiState.value = if (explanation != null) {
+      ReportExplanationState.Success(explanation)
+    } else {
+      ReportExplanationState.Idle
+    }
+  }
+
   fun clear() {
     activeJob?.cancel()
     activeJob = null

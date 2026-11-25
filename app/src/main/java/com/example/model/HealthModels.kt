@@ -59,7 +59,11 @@ data class ReportHistoryItem(
   val category: String,
   val mainHighlight: String,
   val status: TestStatus,
-  val isDemo: Boolean = false
+  val isDemo: Boolean = false,
+  val expiresAtDisplay: String? = null,
+  val retentionStatusLabel: String? = null,
+  val isPendingDeletion: Boolean = false,
+  val canDelete: Boolean = false
 )
 
 data class FaqItem(

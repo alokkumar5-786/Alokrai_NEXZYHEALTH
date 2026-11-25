@@ -49,4 +49,17 @@
     <string name="onboarding_cta_upload">Upload My First Report</string>
     <string name="onboarding_cta_scan">Scan Report</string>
     <string name="onboarding_cta_demo">Try CBC Demo</string>
+
+    <!-- Report Persistence & Seven-Day Retention Lifecycle -->
+    <string name="report_retention_prompt_title">Keep or Delete This Report?</string>
+    <string name="report_retention_prompt_body">Choose Keep to securely store this report and its explanations for 7 days from upload, or Delete to remove it now. Leaving without choosing deletes it automatically.</string>
+    <string name="report_retention_keep_cta">Keep for 7 Days</string>
+    <string name="report_retention_delete_cta">Delete Now</string>
+    <string name="report_retention_delete_leave_cta">Delete &amp; Leave</string>
+    <string name="report_retention_saving">Saving encrypted report securely&#8230;</string>
+    <string name="report_retention_kept_banner">Saved securely until %1$s (7 days from upload)</string>
+    <string name="report_pending_deletion_title">Pending deletion — waiting for connection</string>
+    <string name="report_pending_deletion_subtitle">%1$d deleted report(s) hidden locally and queued for permanent cloud removal once online.</string>
+    <string name="report_history_empty_title">No saved medical reports</string>
+    <string name="report_history_empty_subtitle">Upload or scan a report and choose Keep for 7 Days to access it here.</string>
 </resources>

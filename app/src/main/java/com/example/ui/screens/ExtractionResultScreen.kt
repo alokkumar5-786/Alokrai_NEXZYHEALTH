@@ -54,13 +54,16 @@ import com.example.model.ExtractedRadiologyReport
 import com.example.model.ExtractedSpecialisedReport
 import com.example.model.FieldProvenance
 import com.example.model.FindingStatus
+import com.example.model.PersistedMedicalReport
 import com.example.model.ProvenanceAvailability
 import com.example.model.RadiologyImpression
+import com.example.model.ReportPersistenceSyncStatus
 import com.example.model.ReportSafetySummary
 import com.example.model.SafetyFindingAlert
 import com.example.model.UnavailableComparisonNotice
 import com.example.model.UniversalMedicalReport
 import com.example.ui.components.NexzyTopAppBar
+import com.example.ui.components.ReportRetentionBanner
 import com.example.ui.components.SafetyInlineItemNotice
 import com.example.ui.components.SafetySummaryCard
 import com.example.ui.theme.BrandMintBackground
@@ -84,7 +87,11 @@ fun ExtractionResultScreen(
   onNavigateBack: () -> Unit,
   modifier: Modifier = Modifier,
   onExplainReportClick: (() -> Unit)? = null,
-  safetySummary: ReportSafetySummary? = null
+  safetySummary: ReportSafetySummary? = null,
+  persistedReport: PersistedMedicalReport? = null,
+  persistenceSyncStatus: ReportPersistenceSyncStatus = ReportPersistenceSyncStatus.Idle,
+  onKeepReportClick: (() -> Unit)? = null,
+  onDeleteReportClick: (() -> Unit)? = null
 ) {
   Column(
     modifier = modifier
@@ -132,6 +139,17 @@ fun ExtractionResultScreen(
           fileName = fileName,
           patientName = patientName
         )
+      }
+
+      if (onKeepReportClick != null && onDeleteReportClick != null) {
+        item {
+          ReportRetentionBanner(
+            report = persistedReport,
+            syncStatus = persistenceSyncStatus,
+            onKeepReportClick = onKeepReportClick,
+            onDeleteReportClick = onDeleteReportClick
+          )
+        }
       }
 
       item {
